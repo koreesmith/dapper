@@ -5,7 +5,7 @@ RUN npm ci
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.24-alpine AS backend
+FROM golang:1.26-alpine AS backend
 WORKDIR /src
 COPY backend/ .
 RUN CGO_ENABLED=0 go build -o /dapper ./cmd/dapper
