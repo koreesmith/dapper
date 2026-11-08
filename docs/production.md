@@ -103,6 +103,12 @@ changes nothing. You can also create a missing container later from the Settings
     `sshPublicKey`; your server needs the `openssh-lpk` schema, and the check in Settings tells you).
   - *Deleting* an account also deletes its private group. Group IDs aren't reused until you widen or reset the range.
   - Dapper doesn't create the home directory on any server (that's your PAM/`mkhomedir` setup).
+- **Groups.** The Groups page shows every kind of group in your groups container: ordinary groups (members
+  listed by full name), Linux groups (`posixGroup`, members listed by username in `memberUid`) and the personal
+  group each person has as their primary group (the Red Hat style), with filters, search and paging. Adding or
+  removing a member uses the right form for each kind. A Linux group that someone has as their primary group
+  can't be deleted until you change their primary group, and deleting a person also removes their personal
+  group and takes them out of other groups' member lists.
 - **Suspending moves the account** to the suspended container, so its DN changes. Dapper updates group
   membership in your groups container, but anything else that refers to the old DN (ACLs, other
   applications) won't follow. If that matters, use `ppolicy` locking instead.

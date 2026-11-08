@@ -26,7 +26,7 @@ export function NewPerson({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ dn: string; username: string; pw?: string } | null>(null);
 
-  useEffect(() => { if (me.features.groups) api.groups().then(setGroups).catch(() => {}); }, [me.features.groups]);
+  useEffect(() => { if (me.features.groups) api.assignableGroups().then(setGroups).catch(() => {}); }, [me.features.groups]);
   useEffect(() => {
     if (me.features.unix && !homeEdited) setHome(me.features.homePattern.replace("%u", username));
   }, [username, homeEdited, me.features.unix, me.features.homePattern]);

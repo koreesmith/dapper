@@ -17,13 +17,15 @@ func (s *Server) getProfile(w http.ResponseWriter, _ *http.Request, sess *sessio
 		if err != nil {
 			return err
 		}
-		gs, err := s.memberships(c, sess.DN)
+		gs, err := s.memberships(c, sess.DN, first(e.Values("uid")), first(e.Values("gidNumber")))
 		if err != nil {
 			return err
 		}
 		groups := make([]string, 0, len(gs))
 		for _, g := range gs {
-			groups = append(groups, g.Name)
+			if g.Kind != kindPersonal { // everyone has one; it isn't interesting
+				groups = append(groups, g.Name)
+			}
 		}
 		name := first(e.Values("displayName"))
 		if name == "" {

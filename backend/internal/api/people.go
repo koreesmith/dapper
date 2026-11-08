@@ -101,13 +101,12 @@ func (s *Server) getUser(w http.ResponseWriter, r *http.Request, sess *session.S
 			return err
 		}
 		u := users.FromEntry(*e)
-		gs, err := s.memberships(c, dn)
+		groups, err := s.memberships(c, dn, u.Username, first(e.Values("gidNumber")))
 		if err != nil {
 			return err
 		}
-		groups := make([]map[string]string, 0, len(gs))
-		for _, g := range gs {
-			groups = append(groups, map[string]string{"dn": g.DN, "name": g.Name})
+		if groups == nil {
+			groups = []membership{}
 		}
 		resp = map[string]any{
 			"dn": dn, "username": u.Username, "name": u.Name,
@@ -369,11 +368,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 			}
 		}
 		for _, g := range in.Groups {
-			e, err := c.GetAttrs(g, []string{cfg.Groups.MemberAttribute})
-			if err != nil {
-				return err
-			}
-			if err := s.setMembers(c, g, append(s.realMembers(e.Values(cfg.Groups.MemberAttribute)), dn)); err != nil {
+			if err := s.addMember(c, g, dn); err != nil {
 				return err
 			}
 		}
@@ -469,15 +464,21 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, sess *sessio
 	cfg := s.c()
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
 		var uid, gid string
-		if cfg.Unix.Enabled {
-			if e, err := c.GetAttrs(dn, []string{"uid", "gidNumber"}); err == nil {
-				uid, gid = first(e.Values("uid")), first(e.Values("gidNumber"))
-			}
+		if e, err := c.GetAttrs(dn, []string{"uid", "gidNumber"}); err == nil {
+			uid, gid = first(e.Values("uid")), first(e.Values("gidNumber"))
 		}
 		if err := s.replaceInGroups(c, dn, ""); err != nil {
 			return err
 		}
 		if err := c.Delete(dn); err != nil {
+			return err
+		}
+		if cfg.Groups.BaseDN == "" {
+			return nil
+		}
+		// Tidy Linux groups: take their username out of every group's member list, and remove
+		// their personal group (a group named after them with their id, not shared with anyone else).
+		if err := s.removeUIDFromGroups(c, uid); err != nil {
 			return err
 		}
 		return removePrivateGroup(c, cfg, uid, gid)

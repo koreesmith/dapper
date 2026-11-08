@@ -417,3 +417,100 @@ func (c *Client) NamingContexts() ([]string, error) {
 	}
 	return es[0].Values("namingContexts"), nil
 }
+
+// GroupEntry is a group of any common kind: members listed by full name (groupOfNames,
+// groupOfUniqueNames) or by username (posixGroup's memberUid).
+type GroupEntry struct {
+	DN         string
+	Name       string
+	Classes    []string
+	Members    []string // member / uniqueMember values (full names)
+	MemberUIDs []string // memberUid values (usernames)
+	GID        string
+}
+
+// HasClass reports whether the group has the object class (case-insensitive).
+func (g GroupEntry) HasClass(c string) bool {
+	for _, x := range g.Classes {
+		if strings.EqualFold(x, c) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDNGroup is true for groups whose members are listed by full name.
+func (g GroupEntry) IsDNGroup() bool {
+	return g.HasClass("groupOfNames") || g.HasClass("groupOfUniqueNames")
+}
+
+// DNMemberAttr is the attribute a DN-style group lists its members in.
+func (g GroupEntry) DNMemberAttr(def string) string {
+	if g.HasClass("groupOfUniqueNames") && !g.HasClass("groupOfNames") {
+		return "uniqueMember"
+	}
+	if g.HasClass("groupOfNames") {
+		return "member"
+	}
+	return def
+}
+
+const groupFilter = "(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames)(objectClass=posixGroup))"
+
+var groupAttrs = []string{"cn", "objectClass", "member", "uniqueMember", "memberUid", "gidNumber"}
+
+func toGroupEntry(e Entry) GroupEntry {
+	g := GroupEntry{DN: e.DN, Name: first(e.Values("cn"), ""), Classes: e.Values("objectClass"), MemberUIDs: e.Values("memberUid"), GID: first(e.Values("gidNumber"), "")}
+	g.Members = append(append([]string(nil), e.Values("member")...), e.Values("uniqueMember")...)
+	return g
+}
+
+// AllGroups lists every group under base, of any common kind.
+func (c *Client) AllGroups(base string) ([]GroupEntry, error) {
+	es, err := c.search(base, ldap.ScopeWholeSubtree, groupFilter, groupAttrs, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupEntry, 0, len(es))
+	for _, e := range es {
+		out = append(out, toGroupEntry(e))
+	}
+	return out, nil
+}
+
+// GetGroup reads one group.
+func (c *Client) GetGroup(dn string) (*GroupEntry, error) {
+	e, err := c.GetAttrs(dn, groupAttrs)
+	if err != nil {
+		return nil, err
+	}
+	g := toGroupEntry(*e)
+	return &g, nil
+}
+
+// GroupsFor finds the groups a person is in: groups that list their full name, groups
+// that list their username, and the Linux group whose id is their primary group.
+func (c *Client) GroupsFor(base, personDN, username, gid string) (member []GroupEntry, primary []GroupEntry, err error) {
+	filter := "(&" + groupFilter + "(|(member=" + ldap.EscapeFilter(personDN) + ")(uniqueMember=" + ldap.EscapeFilter(personDN) + ")"
+	if username != "" {
+		filter += "(memberUid=" + ldap.EscapeFilter(username) + ")"
+	}
+	filter += "))"
+	es, err := c.search(base, ldap.ScopeWholeSubtree, filter, groupAttrs, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, e := range es {
+		member = append(member, toGroupEntry(e))
+	}
+	if gid != "" {
+		ps, err := c.search(base, ldap.ScopeWholeSubtree, "(&(objectClass=posixGroup)(gidNumber="+ldap.EscapeFilter(gid)+"))", groupAttrs, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, e := range ps {
+			primary = append(primary, toGroupEntry(e))
+		}
+	}
+	return member, primary, nil
+}

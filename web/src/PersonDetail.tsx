@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, GroupSummary, Me, PersonDetail as Person } from "./api";
+import { KIND_LABEL } from "./Groups";
 import { changedAttrs, FieldEditor, FormState, initialValues, Modal, Notice, SecretBox } from "./ui";
 import { go, href } from "./router";
 
@@ -16,7 +17,7 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
   }).catch((x) => setMsg({ kind: "error", text: (x as Error).message })), [dn]);
 
   useEffect(() => { setP(null); setMsg(null); load(); }, [load]);
-  useEffect(() => { if (me.features.groups) api.groups().then(setAllGroups).catch(() => {}); }, [me.features.groups]);
+  useEffect(() => { if (me.features.groups) api.assignableGroups().then(setAllGroups).catch(() => {}); }, [me.features.groups]);
 
   if (!p) return <div className="page">{msg ? <Notice kind="error">{msg.text}</Notice> : "Loading…"}<p><a href="#/people">← Back to people</a></p></div>;
 
@@ -76,11 +77,14 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
           {p.groups.length === 0 && <p className="sub">Not in any groups.</p>}
           <ul className="chips">
             {p.groups.map((g) => (
-              <li key={g.dn}>
+              <li key={g.dn} title={g.primary ? "Their primary group on Linux (set by their group ID)" : KIND_LABEL[g.kind]}>
                 <a href={href("#/group", g.dn)}>{g.name}</a>
-                <button className="plain" aria-label={`Remove from ${g.name}`} onClick={async () => {
-                  try { await api.removeMember(g.dn, p.dn); await load(); } catch (x) { setMsg({ kind: "error", text: (x as Error).message }); }
-                }}>✕</button>
+                {g.primary && <span className="sub"> primary</span>}
+                {g.kind === "personal" || g.primary ? null : (
+                  <button className="plain" aria-label={`Remove from ${g.name}`} onClick={async () => {
+                    try { await api.removeMember(g.dn, p.dn); await load(); } catch (x) { setMsg({ kind: "error", text: (x as Error).message }); }
+                  }}>✕</button>
+                )}
               </li>
             ))}
           </ul>

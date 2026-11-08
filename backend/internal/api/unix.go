@@ -177,21 +177,8 @@ func (s *Server) prepareUnix(c *ldapclient.Client, cfg *config.Config, username 
 		return 0, validationError("A group named “" + username + "” already exists, so this person's private group can't be created. Pick another username.")
 	}
 
-	var id int
-	if override = strings.TrimSpace(override); override != "" {
-		n, err := strconv.Atoi(override)
-		if err != nil || n < 1000 || n > 2147483647 {
-			return 0, validationError("The User ID must be a whole number of at least 1000.")
-		}
-		used, err := idInUse(c, cfg, n)
-		if err != nil {
-			return 0, idError(err)
-		}
-		if used {
-			return 0, validationError(fmt.Sprintf("The number %d is already used by another account or group.", n))
-		}
-		id = n
-	} else if id, err = nextUnixID(c, cfg); err != nil {
+	id, err := s.chooseID(c, cfg, override)
+	if err != nil {
 		return 0, err
 	}
 
@@ -231,7 +218,7 @@ func removePrivateGroup(c *ldapclient.Client, cfg *config.Config, username, gid 
 		return nil
 	}
 	dn := privateGroupDN(cfg, username)
-	e, err := c.GetAttrs(dn, []string{"objectClass", "gidNumber"})
+	e, err := c.GetAttrs(dn, []string{"objectClass", "gidNumber", "memberUid"})
 	if err != nil {
 		if ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) {
 			return nil
@@ -240,6 +227,11 @@ func removePrivateGroup(c *ldapclient.Client, cfg *config.Config, username, gid 
 	}
 	if !hasObjectClass(e, "posixGroup") || first(e.Values("gidNumber")) != gid {
 		return nil
+	}
+	for _, m := range e.Values("memberUid") {
+		if !strings.EqualFold(m, username) {
+			return nil // other people are in it: it's a shared group that happens to share their name
+		}
 	}
 	return c.Delete(dn)
 }

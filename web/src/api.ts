@@ -21,13 +21,17 @@ export interface User {
 export interface UserPage { users: User[]; total: number; page: number; pageSize: number; truncated: boolean }
 export interface UserQuery { q: string; sort: string; dir: "asc" | "desc"; status: string; page: number; pageSize: number }
 
+export type GroupKind = "shared" | "linux" | "personal";
 export interface PersonDetail {
   dn: string; username: string; name: string; suspended: boolean; isSelf: boolean;
-  fields: FieldValue[]; groups: { dn: string; name: string }[];
+  fields: FieldValue[]; groups: { dn: string; name: string; kind: GroupKind; primary?: boolean }[];
 }
 export interface Profile { dn: string; username: string; name: string; fields: FieldValue[]; groups: string[] }
-export interface GroupSummary { dn: string; name: string; members: number; admin?: boolean }
-export interface GroupDetail { dn: string; name: string; members: { dn: string; username: string; name: string }[] }
+export interface GroupSummary { dn: string; name: string; kind: GroupKind; gid?: string; members: number; admin?: boolean }
+export interface GroupPage { groups: GroupSummary[]; total: number; page: number; pageSize: number; counts: Partial<Record<GroupKind, number>> }
+export interface GroupQuery { kind?: string; q?: string; page?: number; pageSize?: number }
+export interface GroupMember { dn: string; username: string; name: string }
+export interface GroupDetail { dn: string; name: string; kind: GroupKind; gid?: string; members: GroupMember[]; primaryMembers: GroupMember[]; protected?: string }
 export interface SettingsIO {
   ldap: { url: string; startTLS: boolean; skipVerify: boolean; bindDN: string; bindPassword?: string; bindPasswordSet?: boolean };
   users: { baseDN: string; loginAttributes: string[]; suspendedBaseDN: string; objectClasses: string[]; rdnAttribute: string };
@@ -72,6 +76,9 @@ export class ApiError extends Error {
 const q = (dn: string) => `dn=${encodeURIComponent(dn)}`;
 const json = (method: string, body: unknown) => ({ method, body: JSON.stringify(body) });
 
+const groupsPage = (p: GroupQuery = {}) =>
+  req<GroupPage>(`/api/admin/groups?kind=${p.kind ?? ""}&q=${encodeURIComponent(p.q ?? "")}&page=${p.page ?? 1}&pageSize=${p.pageSize ?? 25}`);
+
 export const api = {
   login: (username: string, password: string) => req<Me>("/api/login", json("POST", { username, password })),
   logout: () => req<void>("/api/logout", { method: "POST" }),
@@ -96,9 +103,14 @@ export const api = {
     req<{ temporaryPassword?: string }>(`/api/admin/user/password?${q(dn)}`, json("POST", { password: password ?? "" })),
 
   // groups
-  groups: () => req<GroupSummary[]>("/api/admin/groups"),
+  groups: groupsPage,
+  /** Groups people can be put in: shared and Linux groups, not the one-per-person groups. */
+  assignableGroups: async (): Promise<GroupSummary[]> => {
+    const [a, b] = await Promise.all([groupsPage({ kind: "shared", pageSize: 500 }), groupsPage({ kind: "linux", pageSize: 500 })]);
+    return [...a.groups, ...b.groups];
+  },
   group: (dn: string) => req<GroupDetail>(`/api/admin/group?${q(dn)}`),
-  createGroup: (name: string) => req<{ dn: string }>("/api/admin/groups", json("POST", { name })),
+  createGroup: (name: string, kind: "standard" | "linux" = "standard") => req<{ dn: string }>("/api/admin/groups", json("POST", { name, kind })),
   deleteGroup: (dn: string) => req(`/api/admin/group?${q(dn)}`, { method: "DELETE" }),
   addMember: (group: string, member: string) => req(`/api/admin/group/members?${q(group)}`, json("POST", { member })),
   removeMember: (group: string, member: string) =>
