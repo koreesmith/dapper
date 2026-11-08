@@ -44,6 +44,19 @@ export interface SettingsIO {
 export interface Check { key: string; ok: boolean; warn?: boolean; message: string; missing?: string }
 export interface SettingsPayload { settings: SettingsIO; locked: Record<string, boolean>; checks: Check[]; fields: Field[] }
 export interface SetupAdmin { mode: "existing" | "person" | "new"; username: string; givenName: string; sn: string; password: string }
+export interface OverlayParam {
+  key: string; label: string; type: "bool" | "text" | "number" | "multi"; hint?: string; default: string;
+  options?: { value: string; label: string }[]; advanced?: boolean;
+}
+export interface OverlayView {
+  id: string; name: string; summary: string; why: string; warning?: string; params: OverlayParam[];
+  enabled: boolean | null; values: Record<string, string>; notes?: string[];
+}
+export interface OverlayState { unlocked: boolean; unlockError?: string; database?: string; suffix: string; overlays: OverlayView[] }
+export interface OverlayRequest { overlay: string; action: "enable" | "update" | "disable"; values: Record<string, string>; dbDN?: string; confirmed?: boolean; refresh?: boolean }
+export interface OverlayPreview {
+  summary: string[]; warnings: string[]; unlocked: boolean; ldif: string; dataLDIF: string; commands: { config?: string; data?: string };
+}
 export interface FoundGroup { dn: string; name: string; members: number; class: string }
 export interface FoundPerson { dn: string; username: string; name: string }
 export interface Discovery {
@@ -121,6 +134,14 @@ export const api = {
   checkSettings: (s: SettingsIO) => req<{ ok: boolean; checks: Check[] }>("/api/admin/settings/check", json("POST", s)),
   saveSettings: (s: SettingsIO) => req<SettingsPayload>("/api/admin/settings", json("PUT", s)),
   saveFieldPolicy: (fields: Field[]) => req<{ fields: Field[] }>("/api/admin/settings/fields", json("PUT", { fields })),
+
+  // directory server features (overlays)
+  overlays: () => req<OverlayState>("/api/admin/overlays"),
+  unlockOverlays: (dn: string, password: string) => req<{ unlocked: boolean }>("/api/admin/overlays/unlock", json("POST", { dn, password })),
+  lockOverlays: () => req<{ unlocked: boolean }>("/api/admin/overlays/lock", { method: "POST" }),
+  previewOverlay: (r: OverlayRequest) => req<OverlayPreview>("/api/admin/overlays/preview", json("POST", r)),
+  applyOverlay: (r: OverlayRequest) => req<{ ok: boolean; backup: string; refreshedGroups: number }>("/api/admin/overlays/apply", json("POST", r)),
+  refreshMemberOf: () => req<{ refreshedGroups: number }>("/api/admin/overlays/memberof/refresh", json("POST", { confirmed: true })),
 
   // first-run setup
   setupStatus: () => req<{ configured: boolean }>("/api/setup/status"),

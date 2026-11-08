@@ -416,7 +416,16 @@ func (s *Server) setSuspended(suspend bool) handler {
 					target = s.c().Users.BaseDN
 				}
 				if s.isSuspendedDN(dn) == suspend {
-					return nil // already in the requested state
+					if !suspend {
+						// Not suspended, but the password policy may have locked it after too many wrong
+						// passwords: restoring clears that too.
+						err := c.Modify(dn, []ldapclient.Change{{Op: "delete", Attr: "pwdAccountLockedTime"}})
+						if ldapclient.IsCode(err, ldapclient.CodeNoSuchAttribute) || ldapclient.IsCode(err, ldapclient.CodeUndefinedAttribute) {
+							return nil
+						}
+						return err
+					}
+					return nil // already suspended
 				}
 				if err := c.Move(dn, rdnOf(dn), target); err != nil {
 					return err

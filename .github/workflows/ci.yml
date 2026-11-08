@@ -60,6 +60,10 @@ jobs:
         run: ./scripts/e2e.sh
       - name: Linux (Unix) account tests
         run: ./scripts/e2e-unix.sh
+      - name: Group tests (Linux and personal groups)
+        run: ./scripts/e2e-groups.sh
+      - name: Server feature (overlay) tests
+        run: ./scripts/e2e-overlays.sh
       - name: Paging tests against the live directory
         run: cd backend && DAPPER_TEST_LDAP_URL=ldap://localhost:389 go test -count=1 ./internal/ldapclient/
       - name: Logs on failure

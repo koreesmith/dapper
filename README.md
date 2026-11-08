@@ -12,7 +12,8 @@ manage users **without knowing LDAP**. The first release targets **OpenLDAP**.
 - Add people, edit them, suspend and restore them, reset passwords, delete them
 - **Linux-ready accounts:** new accounts get a UID/GID from your range, a home directory, login shell and a
   private group, so they work for logins on your Linux servers; optionally manage SSH public keys
-- Manage groups and membership
+- Manage groups and membership, including Linux groups and Red Hat-style personal groups
+- **Server features:** switch on memberOf, password rules and lockout, duplicate prevention and change logging with a few clicks (OpenLDAP overlays), each previewed first with a backup saved
 - Choose which details people can see and change about themselves
 - An **Advanced** view for working with raw LDAP entries when you need to
 

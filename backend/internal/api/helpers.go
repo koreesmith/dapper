@@ -85,7 +85,7 @@ func friendlyError(err error) (int, string) {
 	case ldap.LDAPResultNoSuchObject:
 		return http.StatusNotFound, "That item no longer exists. It may have been removed by someone else."
 	case ldap.LDAPResultConstraintViolation:
-		if strings.Contains(strings.ToLower(le.Error()), "non-unique") {
+		if low := strings.ToLower(le.Error()); strings.Contains(low, "non-unique") || strings.Contains(low, "not unique") {
 			return http.StatusConflict, "Another account already uses one of those values (for example the same username or email), and the directory requires them to be unique."
 		}
 		return http.StatusBadRequest, "The directory rejected that value" + detail(le) + ". If this was a password, it may not meet the server's password policy."

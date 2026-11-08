@@ -34,8 +34,9 @@ export function SecretBox({ value, note }: { value: string; note?: string }) {
   );
 }
 
-export function Notice({ kind, children }: { kind: "error" | "ok"; children: ReactNode }) {
-  return <p className={kind === "error" ? "error" : "okmsg"} role={kind === "error" ? "alert" : "status"}>{children}</p>;
+export function Notice({ kind, children }: { kind: "error" | "ok" | "warn"; children: ReactNode }) {
+  const cls = { error: "error", ok: "okmsg", warn: "warnmsg" }[kind];
+  return <p className={cls} role={kind === "error" ? "alert" : "status"}>{children}</p>;
 }
 
 /** Rough strength indicator; the server's policy is what actually decides. */

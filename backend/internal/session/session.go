@@ -20,6 +20,48 @@ type Session struct {
 
 	created time.Time
 	last    time.Time
+
+	// The directory server's configuration connection (cn=config), entered by an admin on the
+	// Server page. It lives only in memory, for this session, and expires when idle.
+	cfgMu   sync.Mutex
+	cfgConn *ldapclient.Client
+	cfgUsed time.Time
+}
+
+// SetConfigConn stores (replacing and closing any previous) the cn=config connection.
+func (s *Session) SetConfigConn(c *ldapclient.Client) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	if s.cfgConn != nil {
+		s.cfgConn.Close()
+	}
+	s.cfgConn, s.cfgUsed = c, time.Now()
+}
+
+// ConfigConn returns the cn=config connection if it exists and hasn't been idle longer than maxIdle.
+func (s *Session) ConfigConn(maxIdle time.Duration) *ldapclient.Client {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	if s.cfgConn == nil {
+		return nil
+	}
+	if time.Since(s.cfgUsed) > maxIdle {
+		s.cfgConn.Close()
+		s.cfgConn = nil
+		return nil
+	}
+	s.cfgUsed = time.Now()
+	return s.cfgConn
+}
+
+// ClearConfigConn closes and forgets the cn=config connection.
+func (s *Session) ClearConfigConn() {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	if s.cfgConn != nil {
+		s.cfgConn.Close()
+		s.cfgConn = nil
+	}
 }
 
 type Store struct {
@@ -77,6 +119,7 @@ func (s *Store) expired(sess *Session, now time.Time) bool {
 }
 
 func (s *Store) drop(sess *Session) { // caller holds mu
+	sess.ClearConfigConn()
 	sess.Conn.Close()
 	delete(s.sessions, sess.ID)
 }

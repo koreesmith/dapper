@@ -97,6 +97,13 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/admin/settings", s.admin(s.getSettings))
 	mux.HandleFunc("POST /api/admin/settings/check", s.admin(s.checkSettings))
 	mux.HandleFunc("POST /api/admin/settings/containers", s.admin(s.createContainer))
+	mux.HandleFunc("GET /api/admin/overlays", s.admin(s.overlaysGet))
+	mux.HandleFunc("POST /api/admin/overlays/unlock", s.admin(s.overlaysUnlock))
+	mux.HandleFunc("POST /api/admin/overlays/lock", s.admin(s.overlaysLock))
+	mux.HandleFunc("POST /api/admin/overlays/preview", s.admin(s.overlaysPreview))
+	mux.HandleFunc("POST /api/admin/overlays/apply", s.admin(s.overlaysApply))
+	mux.HandleFunc("POST /api/admin/overlays/memberof/refresh", s.admin(s.overlaysRefreshMemberOf))
+	mux.HandleFunc("GET /api/admin/overlays/backup", s.admin(s.overlaysBackup))
 	mux.HandleFunc("PUT /api/admin/settings", s.admin(s.putSettings))
 	mux.HandleFunc("PUT /api/admin/settings/fields", s.admin(s.putFieldPolicy))
 
