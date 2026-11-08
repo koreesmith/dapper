@@ -40,6 +40,12 @@ req a POST /api/setup/check "$SETTINGS" "$CODE_"; expect "full check passes" "$(
 BAD=${SETTINGS/cn=dapper-admins,ou=groups/cn=no-such-group,ou=groups}
 req a POST /api/setup/complete "{\"settings\":$BAD,\"createContainers\":false,\"admin\":{\"mode\":\"existing\"}}" "$CODE_"
 check "missing admin group blocks setup" 400
+req a POST /api/setup/complete "{\"settings\":$SETTINGS,\"createContainers\":true,\"admin\":{\"mode\":\"existing\"}}" "$CODE_"
+check "creating anything needs the person's approval" 400
+req a POST /api/setup/groups "$SETTINGS" "$CODE_"
+expect "lists the groups that already exist" "$(jq_ "sorted(g['name'] for g in d['groups'])")" "['dapper-admins', 'staff']"
+req a POST /api/setup/people "{\"settings\":$SETTINGS,\"q\":\"bob\"}" "$CODE_"
+expect "finds existing people" "$(jq_ "d['people'][0]['username']")" bob
 req a POST /api/setup/complete "{\"settings\":$SETTINGS,\"createContainers\":false,\"admin\":{\"mode\":\"existing\"}}" "$CODE_"
 check "complete setup" 200
 req a GET /api/setup/status;                 expect "now configured" "$(jq_ "d['configured']")" True
@@ -70,6 +76,12 @@ req adm GET /api/admin/settings;             expect "change persisted" "$(jq_ "d
 req adm POST "/api/admin/user/password?dn=uid=bob,ou=people,dc=example,dc=org" '{"password":"elevenchars"}'
 check "new minimum length enforced live" 400
 req adm PUT /api/admin/settings "$(mod "d['password']['minLength']=8")"; check "restore" 200
+
+# a missing container can be created from Settings, but only one of the configured ones
+req adm POST /api/admin/settings/containers '{"dn":"ou=elsewhere,dc=example,dc=org"}'
+check "arbitrary containers can't be created" 400
+req adm POST /api/admin/settings/containers '{"dn":"ou=suspended,dc=example,dc=org"}'
+check "configured container is created idempotently" 200
 
 echo; echo "passed $PASS, failed $FAIL"
 [ "$FAIL" = 0 ]

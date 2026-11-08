@@ -343,3 +343,31 @@ func missingClasses(have map[string]bool, need []string) []string {
 	}
 	return missing
 }
+
+// createContainer creates one of the configured containers (people, groups or
+// suspended people) that is missing. Only those exact names may be created, and
+// only after the admin confirmed it in the UI.
+func (s *Server) createContainer(w http.ResponseWriter, r *http.Request, sess *session.Session) {
+	var in struct {
+		DN string `json:"dn"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "Invalid request.")
+		return
+	}
+	cfg := s.c()
+	allowed := false
+	for _, dn := range []string{cfg.Users.BaseDN, cfg.Groups.BaseDN, cfg.Users.SuspendedBaseDN} {
+		if dn != "" && strings.EqualFold(dn, in.DN) {
+			allowed = true
+		}
+	}
+	if !allowed {
+		fail(w, http.StatusBadRequest, "Dapper only creates the containers named in its settings.")
+		return
+	}
+	if s.withSvc(w, func(c *ldapclient.Client) error { return ensureOU(c, in.DN) }) {
+		audit(sess, "settings.container.create", in.DN)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}

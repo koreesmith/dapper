@@ -225,3 +225,27 @@ func TestAddUniqueAndSuffix(t *testing.T) {
 		t.Errorf("privateGroupDN escaping: %s", rdnOf2)
 	}
 }
+
+func TestSuggestContainers(t *testing.T) {
+	suffix := "dc=kasasmith,dc=com"
+	got := suggestContainers(suffix, []string{"ou=group,dc=kasasmith,dc=com", "ou=People,dc=kasasmith,dc=com", "ou=Disabled,dc=kasasmith,dc=com", "ou=hosts,dc=kasasmith,dc=com"})
+	want := map[string]string{
+		"usersBaseDN":     "ou=People,dc=kasasmith,dc=com",
+		"groupsBaseDN":    "ou=group,dc=kasasmith,dc=com",
+		"suspendedBaseDN": "ou=Disabled,dc=kasasmith,dc=com",
+		"adminGroupDN":    "cn=dapper-admins,ou=group,dc=kasasmith,dc=com",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+	// "groups" beats "group" when both exist; nothing found falls back to conventional names.
+	if g := suggestContainers(suffix, []string{"ou=group,dc=x", "ou=groups,dc=x"})["groupsBaseDN"]; g != "ou=groups,dc=x" {
+		t.Errorf("preference order: %s", g)
+	}
+	empty := suggestContainers(suffix, nil)
+	if empty["usersBaseDN"] != "ou=people,"+suffix || empty["groupsBaseDN"] != "ou=groups,"+suffix || empty["suspendedBaseDN"] != "ou=suspended,"+suffix {
+		t.Errorf("fallbacks: %v", empty)
+	}
+}

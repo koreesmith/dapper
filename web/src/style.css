@@ -166,3 +166,11 @@ details.advanced summary { cursor: pointer; color: var(--primary); }
 .range input { width: 140px !important; }
 .found { background: var(--selected); border-radius: 6px; padding: 8px 12px; margin: 0; }
 textarea { background: var(--surface); color: var(--text); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px 8px; width: 100%; max-width: 460px; }
+
+.found-list { display: inline; }
+.chip { border: 1px solid var(--primary); color: var(--primary); background: transparent; border-radius: 12px; padding: 0 10px; margin: 0 2px; font-size: 12px; }
+.chip:hover { background: var(--selected); }
+
+.plan { border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.plan h3 { margin: 0; }
+.plan ul { margin: 0; padding-left: 20px; list-style: disc; }

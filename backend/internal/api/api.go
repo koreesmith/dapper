@@ -69,6 +69,8 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
 	mux.HandleFunc("POST /api/setup/discover", s.setupGate(s.setupDiscover))
 	mux.HandleFunc("POST /api/setup/check", s.setupGate(s.setupCheck))
+	mux.HandleFunc("POST /api/setup/groups", s.setupGate(s.setupGroups))
+	mux.HandleFunc("POST /api/setup/people", s.setupGate(s.setupPeople))
 	mux.HandleFunc("POST /api/setup/complete", s.setupGate(s.setupComplete))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
 
@@ -94,6 +96,7 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("DELETE /api/admin/group/members", s.admin(s.changeMember(false)))
 	mux.HandleFunc("GET /api/admin/settings", s.admin(s.getSettings))
 	mux.HandleFunc("POST /api/admin/settings/check", s.admin(s.checkSettings))
+	mux.HandleFunc("POST /api/admin/settings/containers", s.admin(s.createContainer))
 	mux.HandleFunc("PUT /api/admin/settings", s.admin(s.putSettings))
 	mux.HandleFunc("PUT /api/admin/settings/fields", s.admin(s.putFieldPolicy))
 

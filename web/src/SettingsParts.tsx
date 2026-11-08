@@ -66,17 +66,26 @@ export function ConnectionFields({ s, patch, locked }: { s: SettingsIO; patch: P
   );
 }
 
-export function LayoutFields({ s, patch, locked }: { s: SettingsIO; patch: Patch; locked: Locked }) {
+function Found({ dns, onPick }: { dns?: string[]; onPick: (dn: string) => void }) {
+  if (!dns || dns.length === 0) return null;
+  return (
+    <span className="found-list"> Found in your directory:{" "}
+      {dns.map((dn) => <button key={dn} type="button" className="chip" onClick={() => onPick(dn)}>{dn.split(",")[0]}</button>)}
+    </span>
+  );
+}
+
+export function LayoutFields({ s, patch, locked, found }: { s: SettingsIO; patch: Patch; locked: Locked; found?: string[] }) {
   return (
     <>
-      <Row label="Where people are" locked={locked["users.baseDN"]} hint="The container that holds the user accounts.">
+      <Row label="Where people are" locked={locked["users.baseDN"]} hint={<>The container that holds the user accounts.<Found dns={found} onPick={(dn) => patch("users", { baseDN: dn })} /></>}>
         <input value={s.users.baseDN} disabled={locked["users.baseDN"]} onChange={(e) => patch("users", { baseDN: e.target.value })} placeholder="ou=people,dc=example,dc=org" />
       </Row>
-      <Row label="Where groups are" locked={locked["groups.baseDN"]} hint="Optional. Leave empty to turn off group management.">
+      <Row label="Where groups are" locked={locked["groups.baseDN"]} hint={<>Optional. Leave empty to turn off group management.<Found dns={found} onPick={(dn) => patch("groups", { baseDN: dn })} /></>}>
         <input value={s.groups.baseDN} disabled={locked["groups.baseDN"]} onChange={(e) => patch("groups", { baseDN: e.target.value })} placeholder="ou=groups,dc=example,dc=org" />
       </Row>
       <Row label="Where suspended people go" locked={locked["users.suspendedBaseDN"]}
-        hint="Optional. Suspending someone moves them here, which works on any server. Leave empty to lock accounts in place instead (needs the ppolicy overlay).">
+        hint={<>Optional. Suspending someone moves them here, which works on any server. Leave empty to lock accounts in place instead (needs the ppolicy overlay).<Found dns={found} onPick={(dn) => patch("users", { suspendedBaseDN: dn })} /></>}>
         <input value={s.users.suspendedBaseDN} disabled={locked["users.suspendedBaseDN"]} onChange={(e) => patch("users", { suspendedBaseDN: e.target.value })} placeholder="ou=suspended,dc=example,dc=org" />
       </Row>
       <Row label="People sign in with" locked={locked["users.loginAttributes"]} hint="Separate with commas. Usually uid and mail, so people can type a username or an email.">
@@ -134,7 +143,7 @@ export function AdvancedFields({ s, patch }: { s: SettingsIO; patch: Patch }) {
 }
 
 /** A readable checklist of what was tested. `pending` marks things the wizard will create. */
-export function Checks({ checks, pending }: { checks: Check[]; pending?: (c: Check) => boolean }) {
+export function Checks({ checks, pending, onFix, onCreate }: { checks: Check[]; pending?: (c: Check) => boolean; onFix?: (c: Check) => void; onCreate?: (c: Check) => void }) {
   return (
     <ul className="checklist" aria-label="Connection checks">
       {checks.map((c) => {
@@ -144,7 +153,9 @@ export function Checks({ checks, pending }: { checks: Check[]; pending?: (c: Che
         return (
           <li key={c.key} className={cls}>
             <span className="ico" aria-hidden="true">{icon}</span>
-            <span>{will ? c.message.replace("doesn't exist yet.", "doesn't exist yet and will be created.") : c.message}</span>
+            <span>{will ? c.message.replace("doesn't exist yet.", "doesn't exist yet and will be created.") : c.message}
+              {!c.ok && !will && onFix && <> <button type="button" className="link" onClick={() => onFix(c)}>Fix this</button></>}
+              {!c.ok && c.missing && onCreate && <> <button type="button" className="link" onClick={() => onCreate(c)}>Create it…</button></>}</span>
           </li>
         );
       })}
@@ -152,16 +163,20 @@ export function Checks({ checks, pending }: { checks: Check[]; pending?: (c: Che
   );
 }
 
-export function UnixFields({ s, patch, hint }: { s: SettingsIO; patch: Patch; hint?: ReactNode }) {
+export function UnixFields({ s, patch, hint, schema }: { s: SettingsIO; patch: Patch; hint?: ReactNode; schema?: Record<string, boolean> | null }) {
+  // When the server's schema is known, only offer what it supports.
+  const lacks = (n: string) => schema != null && schema[n] === false;
+  const noUnix = lacks("posixAccount") || lacks("posixGroup");
   const num = (v: string) => (v === "" ? 0 : Number(v));
   return (
     <>
       <Row label="Linux logins">
-        <label className="inline"><input type="checkbox" checked={s.unix.enabled} onChange={(e) => patch("unix", { enabled: e.target.checked })} />
+        <label className="inline"><input type="checkbox" checked={s.unix.enabled && !noUnix} disabled={noUnix} onChange={(e) => patch("unix", { enabled: e.target.checked })} />
           {" "}New accounts can log in to Linux servers (adds posixAccount details and a private group)</label>
       </Row>
+      {noUnix && <p className="error" role="alert">This server's schema doesn't include posixAccount and posixGroup, so it can't hold Linux accounts. Ask your directory administrator to load the nis schema.</p>}
       {hint}
-      {s.unix.enabled && (
+      {s.unix.enabled && !noUnix && (
         <>
           <Row label="User ID range" hint="New accounts get the next free number in this range, above everything already used in it. Group IDs match user IDs.">
             <span className="range">
@@ -178,8 +193,8 @@ export function UnixFields({ s, patch, hint }: { s: SettingsIO; patch: Patch; hi
           </Row>
           <Row label="Options">
             <span className="checks">
-              <label className="inline"><input type="checkbox" checked={s.unix.shadow} onChange={(e) => patch("unix", { shadow: e.target.checked })} /> Also add shadowAccount (password-aging attributes)</label>
-              <label className="inline"><input type="checkbox" checked={s.unix.sshKeys} onChange={(e) => patch("unix", { sshKeys: e.target.checked })} /> Manage SSH public keys (people can add their own)</label>
+              <label className="inline"><input type="checkbox" checked={s.unix.shadow && !lacks("shadowAccount")} disabled={lacks("shadowAccount")} onChange={(e) => patch("unix", { shadow: e.target.checked })} /> Also add shadowAccount (password-aging attributes){lacks("shadowAccount") && <span className="sub"> — not available on this server</span>}</label>
+              <label className="inline"><input type="checkbox" checked={s.unix.sshKeys && !lacks("ldapPublicKey")} disabled={lacks("ldapPublicKey")} onChange={(e) => patch("unix", { sshKeys: e.target.checked })} /> Manage SSH public keys (people can add their own){lacks("ldapPublicKey") && <span className="sub"> — not available: this server doesn't have the openssh-lpk schema</span>}</label>
             </span>
           </Row>
         </>

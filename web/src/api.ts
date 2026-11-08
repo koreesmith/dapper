@@ -40,10 +40,14 @@ export interface SettingsIO {
 export interface Check { key: string; ok: boolean; warn?: boolean; message: string; missing?: string }
 export interface SettingsPayload { settings: SettingsIO; locked: Record<string, boolean>; checks: Check[]; fields: Field[] }
 export interface SetupAdmin { mode: "existing" | "person" | "new"; username: string; givenName: string; sn: string; password: string }
+export interface FoundGroup { dn: string; name: string; members: number; class: string }
+export interface FoundPerson { dn: string; username: string; name: string }
 export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
   exists?: Record<string, boolean>;
+  schema?: Record<string, boolean> | null;
+  containers?: string[];
   unix?: { detected: boolean; accounts: number; highestUID: number; homePattern?: string; defaultShell?: string; shells?: string[] };
 }
 
@@ -110,7 +114,10 @@ export const api = {
   setupStatus: () => req<{ configured: boolean }>("/api/setup/status"),
   setupDiscover: (s: SettingsIO) => req<Discovery>("/api/setup/discover", json("POST", s)),
   setupCheck: (s: SettingsIO) => req<{ ok: boolean; checks: Check[] }>("/api/setup/check", json("POST", s)),
-  setupComplete: (b: { settings: SettingsIO; createContainers: boolean; admin: SetupAdmin }) =>
+  setupGroups: (s: SettingsIO) => req<{ groups: FoundGroup[]; suggest: { objectClass?: string; memberAttribute?: string } }>("/api/setup/groups", json("POST", s)),
+  setupPeople: (s: SettingsIO, q: string) => req<{ people: FoundPerson[] }>("/api/setup/people", json("POST", { settings: s, q })),
+  createContainer: (dn: string) => req("/api/admin/settings/containers", json("POST", { dn })),
+  setupComplete: (b: { settings: SettingsIO; createContainers: boolean; confirmed: boolean; admin: SetupAdmin }) =>
     req<{ ok: boolean }>("/api/setup/complete", json("POST", b)),
 
   // advanced (raw directory)

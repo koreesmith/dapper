@@ -61,14 +61,18 @@ Open Dapper over HTTPS and follow the wizard:
   Don't tick "don't verify the certificate" on a live server. If your server uses a private certificate
   authority, see "Trusting a private CA" below.
 - **Service account:** a dedicated account for Dapper, not the directory's root account.
-- **Where things live:** check the suggestions and correct them to match your tree.
-  **Untick "Create these containers"** so Dapper never creates anything you didn't expect.
-- **Suspended people:** create the container yourself (for example `ou=suspended`) and enter it. If you
-  leave it empty, Dapper locks accounts in place, which needs OpenLDAP's `ppolicy` overlay.
-- **Administrators:** choose **an existing group** whose members are people you trust to manage everyone.
-  Avoid the "create" options on a live directory.
+- **Where things live:** Dapper looks at your directory and picks the containers that already exist (it
+  recognises names like `people`/`users` and `group`/`groups`); click any name under a box to choose
+  differently. If you want suspended people moved aside, enter a container for them; if you leave it
+  empty, Dapper locks accounts in place, which needs OpenLDAP's `ppolicy` overlay.
+- **Administrators:** the groups already in your directory are listed. Click one to use it, or pick the
+  other options to make an existing person (found as you type) or a brand-new account an administrator.
+  Choose carefully: **everyone in this group can manage all accounts**.
 
-The Review step tests everything before anything is saved.
+The **Review** step tests everything and lists, in plain words, every change Dapper would make to your
+directory (containers it would create, the administrators group, a first administrator). **Nothing is
+created until you tick "Yes, make these changes"**, and if everything you chose already exists, Dapper
+changes nothing. You can also create a missing container later from the Settings page, with a confirmation.
 
 ## 5. Check it works
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, Check, Field, SettingsIO } from "./api";
 import { AdminGroupField, AdvancedFields, Checks, ConnectionFields, LayoutFields, Locked, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
-import { Notice } from "./ui";
+import { Modal, Notice } from "./ui";
 
 type Msg = { kind: "ok" | "error"; text: string } | null;
 
@@ -15,6 +15,7 @@ export function Settings() {
   const [msg, setMsg] = useState<Msg>(null);
   const [fmsg, setFmsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
+  const [toCreate, setToCreate] = useState<string | null>(null);
 
   const load = () => api.settings().then((d) => {
     setSaved(d.settings); setS(d.settings); setLocked(d.locked); setChecks(d.checks);
@@ -65,7 +66,7 @@ export function Settings() {
         <AdvancedFields s={s} patch={patch} />
 
         <h3>Status</h3>
-        <Checks checks={checks} />
+        <Checks checks={checks} onCreate={(c) => c.missing && setToCreate(c.missing)} />
         {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
         <div className="formactions">
           <button className="primary" disabled={!dirty || busy}>{busy ? "Working…" : "Save settings"}</button>
@@ -74,6 +75,19 @@ export function Settings() {
         </div>
         <p className="sub">Settings are tested before they're saved, and a change that would lock you out of the admin screens is refused.</p>
       </form>
+
+      {toCreate && (
+        <Modal title="Create this container?" onClose={() => setToCreate(null)}>
+          <p>Dapper will add an empty container named <strong>{toCreate}</strong> to your directory. Nothing else changes.</p>
+          <div className="formactions">
+            <button className="primary" onClick={async () => {
+              try { await api.createContainer(toCreate); setToCreate(null); const r = await api.checkSettings(s); setChecks(r.checks); setMsg({ kind: "ok", text: "The container was created." }); }
+              catch (x) { setToCreate(null); setMsg({ kind: "error", text: (x as Error).message }); }
+            }}>Create it</button>
+            <button onClick={() => setToCreate(null)}>Cancel</button>
+          </div>
+        </Modal>
+      )}
 
       <form className="panel" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setFmsg(null);

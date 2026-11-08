@@ -16,13 +16,15 @@ The wizard then walks through:
 
 1. **Your directory:** the server address, whether to use StartTLS, and the service account
    ([what access it needs](service-account.md)). Dapper tests the connection straight away.
-2. **Where things live:** the containers for people, groups and suspended people. Dapper suggests names
-   based on your directory, and can create any that don't exist yet.
-3. **Administrators:** pick an existing administrators group, make an existing person an administrator,
-   or create a brand-new administrator account (handy for an empty directory).
+2. **Where things live:** the containers for people, groups and suspended people. Dapper finds the ones that
+   already exist (and offers them as choices) and suggests names for any that don't.
+3. **Administrators:** pick one of the groups already in your directory, make an existing person (found as
+   you type) an administrator, or create a brand-new administrator account (handy for an empty directory).
 4. **Linux accounts:** if people log in to Linux servers through this directory, Dapper detects your existing
    Unix accounts and suggests matching settings; see [production.md](production.md#6-things-to-know-about-a-live-directory).
-5. **Review:** everything is tested against your directory before anything is saved.
+5. **Review:** everything is tested against your directory, and you're shown every change Dapper would make
+   (creating a missing container, the administrators group, a first administrator). Nothing is created until
+   you approve it.
 
 ## Changing settings later
 

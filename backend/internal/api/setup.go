@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -76,14 +77,10 @@ func (s *Server) setupDiscover(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 	ctxs, _ := c.NamingContexts()
 	sugg := map[string]string{}
+	var containers []string
 	if len(ctxs) > 0 {
-		suffix := ctxs[0]
-		sugg = map[string]string{
-			"usersBaseDN":     "ou=people," + suffix,
-			"groupsBaseDN":    "ou=groups," + suffix,
-			"suspendedBaseDN": "ou=suspended," + suffix,
-			"adminGroupDN":    "cn=dapper-admins,ou=groups," + suffix,
-		}
+		containers = organizationalUnits(c, ctxs[0])
+		sugg = suggestContainers(ctxs[0], containers)
 	}
 	exists := map[string]bool{}
 	for k, dn := range sugg {
@@ -93,7 +90,16 @@ func (s *Server) setupDiscover(w http.ResponseWriter, r *http.Request) {
 	if len(ctxs) > 0 {
 		det = detectUnix(c, ctxs[0])
 	}
-	writeJSON(w, map[string]any{"ok": true, "checks": checks, "contexts": ctxs, "suggestions": sugg, "exists": exists, "unix": det})
+	// Which Unix-related object classes the server's schema supports, so the wizard
+	// never offers something the server can't do. Left out if the schema can't be read.
+	var schema map[string]bool
+	if have, err := c.ObjectClassNames(); err == nil && len(have) > 0 {
+		schema = map[string]bool{}
+		for _, n := range []string{"posixAccount", "posixGroup", "shadowAccount", "ldapPublicKey"} {
+			schema[n] = have[strings.ToLower(n)]
+		}
+	}
+	writeJSON(w, map[string]any{"ok": true, "checks": checks, "contexts": ctxs, "suggestions": sugg, "exists": exists, "unix": det, "schema": schema, "containers": containers})
 }
 
 // setupCheck validates the full candidate configuration.
@@ -136,6 +142,7 @@ func (s *Server) setupComplete(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Settings         settingsIO `json:"settings"`
 		CreateContainers bool       `json:"createContainers"`
+		Confirmed        bool       `json:"confirmed"` // the person approved the changes Dapper will make
 		Admin            setupAdmin `json:"admin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -149,6 +156,11 @@ func (s *Server) setupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	if m := cfg.Missing(); len(m) > 0 {
 		fail(w, http.StatusBadRequest, "Please fill in every required setting.")
+		return
+	}
+	// Nothing is created in the directory without the person's explicit approval.
+	if (in.CreateContainers || in.Admin.Mode == "person" || in.Admin.Mode == "new") && !in.Confirmed {
+		fail(w, http.StatusBadRequest, "Please approve the changes Dapper will make to your directory before finishing setup.")
 		return
 	}
 	c, err := dialSvc(cfg)
@@ -250,3 +262,151 @@ func (s *Server) createFirstAdmin(c *ldapclient.Client, cfg *config.Config, a se
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// organizationalUnits lists the ou= containers directly below suffix.
+func organizationalUnits(c *ldapclient.Client, suffix string) []string {
+	es, err := c.Children(suffix)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range es {
+		for _, oc := range e.Values("objectClass") {
+			if strings.EqualFold(oc, "organizationalUnit") {
+				out = append(out, e.DN)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// suggestContainers picks, from what really exists, the likely people, groups and
+// suspended-people containers by their usual names, falling back to conventional
+// names (to be created) when none is found.
+func suggestContainers(suffix string, existing []string) map[string]string {
+	names := map[string][]string{
+		"usersBaseDN":     {"people", "users", "user", "accounts", "employees", "staff"},
+		"groupsBaseDN":    {"groups", "group"},
+		"suspendedBaseDN": {"suspended", "disabled", "inactive", "locked"},
+	}
+	fallback := map[string]string{"usersBaseDN": "people", "groupsBaseDN": "groups", "suspendedBaseDN": "suspended"}
+	sugg := map[string]string{}
+	for key, want := range names {
+		for _, w := range want {
+			for _, dn := range existing {
+				if _, v := rdnParts(dn); strings.EqualFold(v, w) {
+					sugg[key] = dn
+					break
+				}
+			}
+			if sugg[key] != "" {
+				break
+			}
+		}
+		if sugg[key] == "" {
+			sugg[key] = "ou=" + fallback[key] + "," + suffix
+		}
+	}
+	sugg["adminGroupDN"] = "cn=dapper-admins," + sugg["groupsBaseDN"]
+	return sugg
+}
+
+// setupGroups lists the groups that already exist in the chosen groups container,
+// and guesses whether the directory uses member or uniqueMember.
+func (s *Server) setupGroups(w http.ResponseWriter, r *http.Request) {
+	var o settingsIO
+	if err := json.NewDecoder(r.Body).Decode(&o); err != nil {
+		fail(w, http.StatusBadRequest, "Invalid request.")
+		return
+	}
+	cfg := s.candidate(o)
+	type group struct {
+		DN      string `json:"dn"`
+		Name    string `json:"name"`
+		Members int    `json:"members"`
+		Class   string `json:"class"`
+	}
+	out := []group{}
+	counts := map[string]int{}
+	if cfg.Groups.BaseDN != "" {
+		c, err := dialSvc(cfg)
+		if err != nil {
+			fail(w, http.StatusBadGateway, "Couldn't connect with the service account.")
+			return
+		}
+		defer c.Close()
+		es, err := c.SearchAttrs(cfg.Groups.BaseDN, "(|(objectClass=groupOfNames)(objectClass=groupOfUniqueNames))",
+			[]string{"cn", "member", "uniqueMember", "objectClass"}, 500)
+		if err != nil && !ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) {
+			failLDAP(w, err)
+			return
+		}
+		for _, e := range es {
+			g := group{DN: e.DN, Name: first(e.Values("cn")), Class: "groupOfNames"}
+			attr := "member"
+			for _, oc := range e.Values("objectClass") {
+				if strings.EqualFold(oc, "groupOfUniqueNames") {
+					g.Class, attr = "groupOfUniqueNames", "uniqueMember"
+				}
+			}
+			counts[g.Class]++
+			g.Members = len(e.Values(attr))
+			out = append(out, g)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	suggest := map[string]string{}
+	if counts["groupOfUniqueNames"] > counts["groupOfNames"] {
+		suggest = map[string]string{"objectClass": "groupOfUniqueNames", "memberAttribute": "uniqueMember"}
+	} else if counts["groupOfNames"] > 0 {
+		suggest = map[string]string{"objectClass": "groupOfNames", "memberAttribute": "member"}
+	}
+	writeJSON(w, map[string]any{"groups": out, "suggest": suggest})
+}
+
+// setupPeople finds existing people (for choosing the first administrator).
+func (s *Server) setupPeople(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Settings settingsIO `json:"settings"`
+		Q        string     `json:"q"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "Invalid request.")
+		return
+	}
+	cfg := s.candidate(in.Settings)
+	q := strings.TrimSpace(in.Q)
+	type person struct {
+		DN       string `json:"dn"`
+		Username string `json:"username"`
+		Name     string `json:"name"`
+	}
+	out := []person{}
+	if len(q) >= 2 && cfg.Users.BaseDN != "" {
+		c, err := dialSvc(cfg)
+		if err != nil {
+			fail(w, http.StatusBadGateway, "Couldn't connect with the service account.")
+			return
+		}
+		defer c.Close()
+		e := ldapEscape(q)
+		es, err := c.SearchAttrs(cfg.Users.BaseDN, "(&(objectClass=person)(|(uid=*"+e+"*)(cn=*"+e+"*)(mail=*"+e+"*)))",
+			[]string{"uid", "cn", "displayName"}, 8)
+		if err != nil && !ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) {
+			failLDAP(w, err)
+			return
+		}
+		for _, p := range es {
+			if u := first(p.Values("uid")); u != "" {
+				name := first(p.Values("displayName"))
+				if name == "" {
+					name = first(p.Values("cn"))
+				}
+				out = append(out, person{DN: p.DN, Username: u, Name: name})
+			}
+		}
+	}
+	writeJSON(w, map[string]any{"people": out})
+}

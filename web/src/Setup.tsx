@@ -1,16 +1,16 @@
-import { useState } from "react";
-import { api, ApiError, Check, Discovery, SetupAdmin, SettingsIO, setSetupCode } from "./api";
+import { useEffect, useRef, useState } from "react";
+import { api, ApiError, Check, Discovery, FoundGroup, FoundPerson, SetupAdmin, SettingsIO, setSetupCode } from "./api";
 import { AdminGroupField, blankSettings, Checks, ConnectionFields, LayoutFields, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
 import { Notice } from "./ui";
 import { ThemePicker } from "./ThemePicker";
 
 const STEPS = ["Setup code", "Your directory", "Where things live", "Linux accounts", "Administrators", "Review"];
+const FIX_STEP: Record<string, number> = { connect: 1, people: 2, groups: 2, suspended: 2, unix: 3, admin: 4 };
 
 export function Setup({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const [code, setCode] = useState("");
   const [s, setS] = useState<SettingsIO>(blankSettings());
-  const [createContainers, setCreate] = useState(true);
   const [admin, setAdmin] = useState<SetupAdmin>({ mode: "existing", username: "", givenName: "", sn: "", password: "" });
   const [checks, setChecks] = useState<Check[]>([]);
   const [err, setErr] = useState("");
@@ -18,6 +18,13 @@ export function Setup({ onDone }: { onDone: () => void }) {
   const [suggested, setSuggested] = useState(false);
   const [done, setDone] = useState(false);
   const [detected, setDetected] = useState<Discovery["unix"] | null>(null);
+  const [schema, setSchema] = useState<Record<string, boolean> | null>(null);
+  const [found, setFound] = useState<string[]>([]);
+  const [adminAuto, setAdminAuto] = useState(true); // admin group follows the groups container until edited
+  const [groups, setGroups] = useState<FoundGroup[]>([]);
+  const [people, setPeople] = useState<FoundPerson[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const seq = useRef(0);
 
   const patch: Patch = (section, values) => setS((cur) => ({ ...cur, [section]: { ...cur[section], ...values } }));
   const none = {};
@@ -26,24 +33,65 @@ export function Setup({ onDone }: { onDone: () => void }) {
     const d = (x as ApiError).data as { checks?: Check[] } | undefined;
     if (d?.checks) setChecks(d.checks);
   };
-
   const guard = async (fn: () => Promise<void>) => {
     setBusy(true); setErr("");
     try { await fn(); } catch (x) { fail(x); } finally { setBusy(false); }
   };
 
-  const willCreate = (c: Check) =>
-    (createContainers && !!c.missing) || (c.key === "admin" && admin.mode !== "existing");
+  // Keep the suggested administrators group in the groups container the person chose.
+  useEffect(() => {
+    if (adminAuto && s.groups.baseDN) setS((cur) => ({ ...cur, admin: { groupDN: "cn=dapper-admins," + cur.groups.baseDN } }));
+  }, [s.groups.baseDN, adminAuto]);
+
+  // On the Administrators step, look up the groups that already exist in the chosen container.
+  useEffect(() => {
+    if (step !== 4 || !s.groups.baseDN) return;
+    api.setupGroups(s).then((r) => {
+      setGroups(r.groups);
+      if (r.suggest.objectClass && r.suggest.memberAttribute) {
+        setS((cur) => ({ ...cur, groups: { ...cur.groups, objectClass: r.suggest.objectClass!, memberAttribute: r.suggest.memberAttribute! } }));
+      }
+    }).catch(() => setGroups([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, s.groups.baseDN]);
+
+  // Find existing people as the first administrator's username is typed.
+  useEffect(() => {
+    if (step !== 4 || admin.mode !== "person" || admin.username.trim().length < 2) { setPeople([]); return; }
+    const mine = ++seq.current;
+    const t = setTimeout(() => {
+      api.setupPeople(s, admin.username.trim()).then((r) => { if (mine === seq.current) setPeople(r.people); }).catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, admin.mode, admin.username]);
+
+  // Anything missing is created only after the person approves it on the last step.
+  const willCreate = (c: Check) => !!c.missing || (c.key === "admin" && admin.mode !== "existing");
 
   const connect = () => guard(async () => {
     const d = await api.setupDiscover(s);
     setChecks(d.checks);
     if (!d.ok) return;
+    setSchema(d.schema ?? null);
+    setFound(d.containers ?? []);
+    if (d.schema) {
+      // Never carry forward an option this server can't support.
+      setS((cur) => ({ ...cur, unix: {
+        ...cur.unix,
+        sshKeys: cur.unix.sshKeys && d.schema!.ldapPublicKey !== false,
+        shadow: cur.unix.shadow && d.schema!.shadowAccount !== false,
+        enabled: cur.unix.enabled && d.schema!.posixAccount !== false && d.schema!.posixGroup !== false,
+      } }));
+    }
+    if (d.suggestions && d.exists && d.exists.adminGroupDN === false && !suggested) {
+      setAdmin((a) => (a.mode === "existing" ? { ...a, mode: "person" } : a));
+    }
     if (d.unix && !suggested) {
       setDetected(d.unix);
       if (d.unix.detected) {
         setS((cur) => ({ ...cur, unix: {
-          ...cur.unix, enabled: true,
+          ...cur.unix, enabled: d.schema?.posixAccount !== false,
           homePattern: d.unix!.homePattern || cur.unix.homePattern,
           defaultShell: d.unix!.defaultShell || cur.unix.defaultShell,
         } }));
@@ -61,14 +109,23 @@ export function Setup({ onDone }: { onDone: () => void }) {
     setStep(2);
   });
 
-  const review = () => guard(async () => { setChecks((await api.setupCheck(s)).checks); setStep(5); });
+  const review = () => guard(async () => { setChecks((await api.setupCheck(s)).checks); setConfirmed(false); setStep(5); });
 
   const finish = () => guard(async () => {
-    await api.setupComplete({ settings: s, createContainers, admin });
+    await api.setupComplete({ settings: s, createContainers: true, confirmed, admin });
     setDone(true);
   });
 
+  // What Dapper would create, in plain words, for the person to approve.
+  const adminCheck = checks.find((c) => c.key === "admin");
+  const plan: string[] = [
+    ...checks.filter((c) => c.missing).map((c) => `Create the empty container ${c.missing}`),
+    ...(admin.mode === "new" ? [`Create the account “${admin.username}” (${admin.givenName} ${admin.sn}) as the first administrator`] : []),
+    ...(admin.mode !== "existing" && adminCheck && !adminCheck.ok ? [`Create the administrators group ${s.admin.groupDN}`] : []),
+    ...(admin.mode !== "existing" ? [`Make “${admin.username}” a member of ${s.admin.groupDN}`] : []),
+  ];
   const reviewOK = checks.length > 0 && checks.every((c) => c.ok || willCreate(c));
+  const canFinish = reviewOK && (plan.length === 0 || confirmed);
 
   if (done) {
     return (
@@ -76,7 +133,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
         <div className="panel">
           <h2>Dapper is ready</h2>
           <p>Your settings were saved. You can change any of them later under <strong>Settings</strong>.</p>
-          <p>Now sign in with an administrator account{admin.mode === "new" ? <> — the one you just created: <strong>{admin.username}</strong></> : admin.mode === "person" ? <>: <strong>{admin.username}</strong></> : ""}.</p>
+          <p>Now sign in with an administrator account{admin.mode !== "existing" && admin.username ? <>: <strong>{admin.username}</strong></> : ""}.</p>
           <div className="formactions"><button className="primary" onClick={onDone}>Go to sign in</button></div>
         </div>
       </div>
@@ -95,7 +152,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
         {step === 0 && (
           <>
             <h2>Welcome</h2>
-            <p>Dapper manages the people and groups in your LDAP directory. This short setup connects it to your server. Nothing is installed into your directory.</p>
+            <p>Dapper manages the people and groups in your LDAP directory. This short setup connects it to your server and looks at what's already there, so you only change what you need to. Nothing is created or changed in your directory without your approval on the last step.</p>
             <p>To make sure only you can do this, enter the <strong>setup code</strong> from Dapper's startup log. If you started it with Docker Compose, run:</p>
             <pre className="code">docker compose logs dapper</pre>
             <label>Setup code<input value={code} onChange={(e) => setCode(e.target.value)} autoFocus autoComplete="off" /></label>
@@ -103,8 +160,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
             <div className="formactions">
               <button className="primary" disabled={!code.trim() || busy} onClick={() => guard(async () => {
                 setSetupCode(code.trim());
-                // A harmless call that checks the code before moving on.
-                await api.setupCheck(blankSettings());
+                await api.setupCheck(blankSettings()); // a harmless call that checks the code before moving on
                 setStep(1);
               })}>Continue</button>
             </div>
@@ -128,9 +184,8 @@ export function Setup({ onDone }: { onDone: () => void }) {
         {step === 2 && (
           <>
             <h2>Where things live</h2>
-            <p className="sub">Connected. We've suggested names based on your directory; change them to match yours.</p>
-            <LayoutFields s={s} patch={patch} locked={none} />
-            <label className="inline"><input type="checkbox" checked={createContainers} onChange={(e) => setCreate(e.target.checked)} /> Create these containers if they don't exist yet</label>
+            <p className="sub">Connected. Dapper looked at your directory and picked the containers that look right; click any name under a box to use a different one. If a container doesn't exist, you'll be asked to approve creating it on the last step.</p>
+            <LayoutFields s={s} patch={patch} locked={none} found={found} />
             {err && <Notice kind="error">{err}</Notice>}
             <div className="formactions">
               <button onClick={() => { setErr(""); setStep(1); }}>Back</button>
@@ -151,7 +206,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
                 <button type="button" className="link" onClick={() => patch("unix", { uidMin: detected.highestUID + 1, uidMax: Math.max(s.unix.uidMax, detected.highestUID + 1000) })}>
                   Start new accounts at {detected.highestUID + 1} instead</button></p>
             )}
-            <UnixFields s={s} patch={patch} />
+            <UnixFields s={s} patch={patch} schema={schema} />
             {s.unix.enabled && !s.groups.baseDN && <Notice kind="error">Linux accounts need a groups container (go back one step), because each person gets a private group there.</Notice>}
             <div className="formactions">
               <button onClick={() => { setErr(""); setStep(2); }}>Back</button>
@@ -164,15 +219,32 @@ export function Setup({ onDone }: { onDone: () => void }) {
           <>
             <h2>Administrators</h2>
             <p className="sub">Administrators can manage everyone. Who should be the first one?</p>
+            {groups.length > 0 && (
+              <div className="found">Groups already in your directory:{" "}
+                {groups.map((g) => (
+                  <button key={g.dn} type="button" className="chip" onClick={() => { setAdminAuto(false); setAdmin({ ...admin, mode: "existing" }); patch("admin", { groupDN: g.dn }); }}>
+                    {g.name} ({g.members})</button>
+                ))}
+                <div className="sub">Click one to use it as the administrators group. Everyone in it will be able to manage all accounts.</div>
+              </div>
+            )}
             <fieldset>
-              <legend>Administrators group</legend>
+              <legend>How should administrators be set up?</legend>
               <label className="inline"><input type="radio" checked={admin.mode === "existing"} onChange={() => setAdmin({ ...admin, mode: "existing" })} /> Use a group that already exists</label>
               <label className="inline"><input type="radio" checked={admin.mode === "person"} onChange={() => setAdmin({ ...admin, mode: "person" })} /> Make an existing person an administrator (creates the group if needed)</label>
               <label className="inline"><input type="radio" checked={admin.mode === "new"} onChange={() => setAdmin({ ...admin, mode: "new" })} /> Create a brand-new administrator account (creates the group if needed)</label>
             </fieldset>
-            <AdminGroupField s={s} patch={patch} locked={none} />
+            <AdminGroupField s={s} patch={(sec, v) => { setAdminAuto(false); patch(sec, v); }} locked={none} />
+            {admin.mode === "existing" && <p className="sub">This group must already exist and have at least one member. If it doesn't, choose one of the other two options and Dapper will offer to create it.</p>}
             {admin.mode !== "existing" && (
-              <label>Username<input value={admin.username} onChange={(e) => setAdmin({ ...admin, username: e.target.value })} autoComplete="off" /></label>
+              <label>Username
+                <input value={admin.username} onChange={(e) => setAdmin({ ...admin, username: e.target.value })} autoComplete="off" />
+                {admin.mode === "person" && people.length > 0 && (
+                  <span className="found-list">People found:{" "}
+                    {people.map((p) => <button key={p.dn} type="button" className="chip" onClick={() => setAdmin({ ...admin, username: p.username })}>{p.name || p.username} ({p.username})</button>)}</span>
+                )}
+                {admin.mode === "person" && admin.username.trim().length >= 2 && people.length === 0 && <span className="sub">No one matching that was found in the people container.</span>}
+              </label>
             )}
             {admin.mode === "new" && (
               <>
@@ -201,12 +273,21 @@ export function Setup({ onDone }: { onDone: () => void }) {
           <>
             <h2>Review</h2>
             <p className="sub">Dapper tested these settings against your directory.</p>
-            <Checks checks={checks} pending={willCreate} />
-            {admin.mode !== "existing" && <p className="sub">The administrators group{admin.mode === "new" ? ", the new account," : ""} and {admin.username ? <strong>{admin.username}</strong> : "the person"} will be set up when you finish.</p>}
+            <Checks checks={checks} pending={willCreate} onFix={(c) => { setErr(""); setStep(FIX_STEP[c.key] ?? 2); }} />
+            {plan.length > 0 && (
+              <div className="plan">
+                <h3>Dapper will make these changes in your directory</h3>
+                <ul>{plan.map((p) => <li key={p}>{p}</li>)}</ul>
+                <label className="inline"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> Yes, make these changes</label>
+              </div>
+            )}
+            {plan.length === 0 && reviewOK && <p className="sub">Everything you chose already exists, so Dapper won't create or change anything in your directory.</p>}
             {err && <Notice kind="error">{err}</Notice>}
             <div className="formactions">
               <button onClick={() => { setErr(""); setStep(4); }}>Back</button>
-              <button className="primary" disabled={busy || !reviewOK} onClick={finish}>{busy ? "Finishing…" : "Finish setup"}</button>
+              <button className="primary" disabled={busy || !canFinish} onClick={finish}>{busy ? "Finishing…" : "Finish setup"}</button>
+              {!reviewOK && <span className="error">Fix the items marked ✗ to finish.</span>}
+              {reviewOK && plan.length > 0 && !confirmed && <span className="sub">Tick the box above to approve.</span>}
             </div>
           </>
         )}
