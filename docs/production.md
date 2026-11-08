@@ -18,11 +18,16 @@ A checklist for pointing Dapper at a directory people depend on.
 Dapper itself speaks plain HTTP. People type passwords into it, and so does the setup wizard, so run it
 behind a reverse proxy that terminates TLS **before** you do setup.
 
-Bind Dapper to the local machine only, in a `.env` file next to `docker-compose.yml`:
+Bind Dapper to the local machine only, and choose its port if 8080 is taken, in a `.env` file next to
+`docker-compose.yml` (copy `.env.example`):
 
 ```
 DAPPER_BIND=127.0.0.1
+DAPPER_PORT=8585
 ```
+
+Then point your proxy at that port (for example `reverse_proxy 127.0.0.1:8585`). The port only changes what's
+published on your server; inside the container Dapper always listens on 8080.
 
 Caddy (the simplest; it gets certificates automatically):
 

@@ -5,8 +5,10 @@ services:
   dapper:
     build: .
     ports:
-      # Set DAPPER_BIND=127.0.0.1 (in a .env file) when a reverse proxy in front of Dapper handles HTTPS.
-      - "${DAPPER_BIND:-0.0.0.0}:8080:8080"
+      # Set these in a .env file (see .env.example):
+      #   DAPPER_PORT  the port to publish on this server (default 8080)
+      #   DAPPER_BIND  127.0.0.1 when a reverse proxy in front of Dapper handles HTTPS (default: all interfaces)
+      - "${DAPPER_BIND:-0.0.0.0}:${DAPPER_PORT:-8080}:8080"
     environment:
       DAPPER_SETUP_CODE: ${DAPPER_SETUP_CODE:-}   # optional: choose the setup code instead of a random one
     volumes:
