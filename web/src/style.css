@@ -49,9 +49,12 @@ header { display: flex; gap: 12px; align-items: center; padding: 8px 12px; backg
 header strong { color: var(--primary); }
 .spacer { flex: 1; }
 nav { display: flex; gap: 4px; }
-.tab { border-color: transparent; background: transparent; }
-.tab.on { font-weight: 600; background: var(--selected); }
+.tab { padding: 6px 12px; border-radius: 4px; text-decoration: none; color: var(--text); }
+.tab:hover { background: var(--selected); }
+.tab.on { font-weight: 600; background: var(--selected); color: var(--primary); }
+.content { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
 .page { padding: 16px 24px; }
+.page.narrow { max-width: 860px; width: 100%; }
 
 .layout { display: grid; grid-template: "t t" auto "a m" 1fr / 340px 1fr; flex: 1; min-height: 0; }
 .toolbar { grid-area: t; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -65,7 +68,7 @@ aside > ul { padding-left: 0; }
 .node.sel { font-weight: 600; background: var(--selected); }
 table { border-collapse: collapse; margin-bottom: 12px; }
 th { text-align: left; vertical-align: top; padding: 4px 12px 4px 0; font-weight: 500; color: var(--muted); }
-td input { display: block; width: 420px; max-width: 100%; margin-bottom: 4px; }
+td input:not([type="checkbox"]):not([type="radio"]) { display: block; width: 420px; max-width: 100%; margin-bottom: 4px; }
 
 .list-tools { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .search { flex: 1; max-width: 520px; padding: 8px 10px; }
@@ -81,4 +84,57 @@ a { color: var(--primary); }
 .badge.on { color: var(--primary); border-color: var(--primary); }
 .badge.off { color: var(--danger); border-color: var(--danger); }
 .pager { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
-.page { overflow: auto; flex: 1; }
+
+.layout { overflow: hidden; }
+.pagehead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pagehead h2 { margin: 0 0 4px; }
+.actions, .formactions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.formactions { margin-top: 12px; }
+.btn { display: inline-block; padding: 6px 12px; border: 1px solid var(--control-border); border-radius: 4px; background: var(--surface); color: var(--text); text-decoration: none; }
+.btn:hover { background: var(--selected); }
+a.btn.primary, .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+a.btn.primary:hover { background: var(--primary-hover); }
+button.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+button.danger { border-color: var(--danger); }
+button.plain { border: 0; background: transparent; padding: 2px 6px; color: var(--muted); }
+button.link { border: 0; background: transparent; padding: 2px 0; color: var(--primary); text-align: left; text-decoration: underline; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.panel h3, .modal h3 { margin: 0 0 4px; }
+.field { display: grid; grid-template-columns: 170px 1fr; gap: 8px 12px; align-items: start; }
+.flabel { display: block; padding-top: 6px; color: var(--muted); }
+.fvalue { padding-top: 6px; }
+.finputs { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.frow { display: flex; gap: 4px; align-items: center; width: 100%; }
+.frow input, .frow textarea { flex: 1; max-width: 420px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+fieldset { border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; }
+.chips li { display: inline-flex; align-items: center; gap: 2px; background: var(--selected); border-radius: 14px; padding: 2px 4px 2px 12px; }
+.chips li:not(:has(button)) { padding-right: 12px; }
+.rowlink { color: var(--primary); font-weight: 500; }
+tr.dim td { color: var(--muted); }
+.right { text-align: right !important; }
+.okmsg { color: var(--primary); }
+.backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.modal { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 20px; width: min(480px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.secret { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--bg); border: 1px dashed var(--control-border); border-radius: 6px; padding: 10px 12px; }
+.secret code { font-size: 16px; letter-spacing: 0.5px; user-select: all; }
+.meter { display: flex; align-items: center; gap: 8px; }
+.meter .bar { height: 6px; border-radius: 3px; background: var(--danger); transition: width 0.2s; min-width: 6px; }
+.meter .bar.s2 { background: #c98a00; } .meter .bar.s3, .meter .bar.s4 { background: var(--primary); }
+.facts { display: grid; grid-template-columns: 200px 1fr; gap: 4px 12px; margin: 0; }
+.facts dt { color: var(--muted); } .facts dd { margin: 0; word-break: break-all; }
+.picker { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.picker button { width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; padding: 8px 12px; }
+.picker button:hover { background: var(--selected); }
+textarea { font: inherit; }
+@media (max-width: 720px) {
+  .field, .facts, .grid2 { grid-template-columns: 1fr; }
+  .layout { grid-template: "t" auto "a" auto "m" 1fr / 1fr; }
+  header { flex-wrap: wrap; }
+  table.users { display: block; overflow-x: auto; }
+}
+
+.panel > button, .panel > a.btn { align-self: flex-start; }
+.pagehead { margin-bottom: 12px; }

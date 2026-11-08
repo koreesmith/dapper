@@ -1,21 +1,39 @@
-# Copy to dapper.yaml (or set DAPPER_CONFIG). Any setting can also come from
-# an environment variable, e.g. DAPPER_LDAP_BIND_PASSWORD; prefer that for secrets.
+# Copy to dapper.yaml (or point DAPPER_CONFIG at it). Every setting can also come
+# from an environment variable (see docs/configuration.md); prefer the environment
+# for secrets such as the service account password.
+
 listen: ":8080"
-static: ""            # directory of the built web UI (the Docker image sets this)
+static: ""             # directory of the built web UI (the Docker image sets this)
+dataDir: ./data        # where settings changed in the UI are stored; keep it on a volume
 
 ldap:
   url: ldap://ldap.example.org:389
   startTLS: true
   skipVerify: false
-  bindDN: cn=dapper-svc,dc=example,dc=org   # read-only account, used only to look users up
-  bindPassword: ""                          # DAPPER_LDAP_BIND_PASSWORD
+  # The service account. Dapper uses it to look people up, and to make every change
+  # after checking permissions itself. See docs/service-account.md for the access it needs.
+  bindDN: cn=dapper-svc,dc=example,dc=org
+  bindPassword: ""     # DAPPER_LDAP_BIND_PASSWORD
 
 users:
   baseDN: ou=people,dc=example,dc=org
-  loginAttributes: [uid, mail]              # what people may type as their username
+  loginAttributes: [uid, mail]      # what people may type to sign in
+  objectClasses: [inetOrgPerson]    # applied to new accounts
+  rdnAttribute: uid                 # naming attribute for new accounts
+  # Suspending moves an account here (works on any server). Leave empty to lock accounts
+  # in place instead, which needs the OpenLDAP ppolicy overlay.
+  suspendedBaseDN: ou=suspended,dc=example,dc=org
+
+groups:
+  baseDN: ou=groups,dc=example,dc=org   # leave empty to turn group management off
+  objectClass: groupOfNames
+  memberAttribute: member
 
 admin:
-  groupDN: cn=dapper-admins,ou=groups,dc=example,dc=org   # members get the admin console
+  groupDN: cn=dapper-admins,ou=groups,dc=example,dc=org   # members get the admin screens
+
+password:
+  minLength: 8         # enforced by Dapper in addition to the server's own policy
 
 session:
   idleTimeout: 30m

@@ -94,6 +94,7 @@ type groupSummary struct {
 	DN      string `json:"dn"`
 	Name    string `json:"name"`
 	Members int    `json:"members"`
+	Admin   bool   `json:"admin,omitempty"` // membership grants Dapper admin access
 }
 
 func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
@@ -105,7 +106,7 @@ func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request, _ *session.S
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
 		gs, err := c.Groups(s.cfg.Groups.BaseDN, s.cfg.Groups.ObjectClass, s.cfg.Groups.MemberAttribute)
 		for _, g := range gs {
-			out = append(out, groupSummary{DN: g.DN, Name: g.Name, Members: len(s.realMembers(g.Members))})
+			out = append(out, groupSummary{DN: g.DN, Name: g.Name, Members: len(s.realMembers(g.Members)), Admin: eqFold(g.DN, s.cfg.Admin.GroupDN)})
 		}
 		return err
 	}) {

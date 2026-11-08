@@ -237,50 +237,82 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 	writeJSON(w, out)
 }
 
-func (s *Server) children(w http.ResponseWriter, r *http.Request, sess *session.Session) {
+// rootDN is the top of the directory tree shown in the Advanced browser: the
+// users container's domain suffix (from its first dc= component), if any.
+func (s *Server) rootDN() string {
+	base := s.cfg.Users.BaseDN
+	for i := 0; i+3 <= len(base); i++ {
+		if (i == 0 || base[i-1] == ',') && strings.EqualFold(base[i:i+3], "dc=") {
+			return base[i:]
+		}
+	}
+	return base
+}
+
+// The Advanced (raw LDAP) handlers run as the service account after the
+// admin check, and every change is audited.
+
+func (s *Server) children(w http.ResponseWriter, r *http.Request, _ *session.Session) {
 	dn := r.URL.Query().Get("dn")
 	if dn == "" {
-		dn = s.cfg.Users.BaseDN
+		dn = s.rootDN()
 	}
-	res, err := sess.Conn.Children(dn)
-	reply(w, res, err)
+	var res []ldapclient.Entry
+	if s.withSvc(w, func(c *ldapclient.Client) (err error) { res, err = c.Children(dn); return }) {
+		writeJSON(w, res)
+	}
 }
 
-func (s *Server) getEntry(w http.ResponseWriter, r *http.Request, sess *session.Session) {
-	res, err := sess.Conn.Get(r.URL.Query().Get("dn"))
-	reply(w, res, err)
+func (s *Server) getEntry(w http.ResponseWriter, r *http.Request, _ *session.Session) {
+	var res *ldapclient.Entry
+	if s.withSvc(w, func(c *ldapclient.Client) (err error) { res, err = c.Get(r.URL.Query().Get("dn")); return }) {
+		writeJSON(w, res)
+	}
 }
 
-func (s *Server) search(w http.ResponseWriter, r *http.Request, sess *session.Session) {
+func (s *Server) search(w http.ResponseWriter, r *http.Request, _ *session.Session) {
 	q := r.URL.Query()
 	base := q.Get("base")
 	if base == "" {
-		base = s.cfg.Users.BaseDN
+		base = s.rootDN()
 	}
-	res, err := sess.Conn.Search(base, q.Get("filter"), 200)
-	reply(w, res, err)
+	var res []ldapclient.Entry
+	if s.withSvc(w, func(c *ldapclient.Client) (err error) { res, err = c.Search(base, q.Get("filter"), 200); return }) {
+		writeJSON(w, res)
+	}
 }
 
 func (s *Server) addEntry(w http.ResponseWriter, r *http.Request, sess *session.Session) {
 	var e ldapclient.Entry
 	if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
-		fail(w, http.StatusBadRequest, err.Error())
+		fail(w, http.StatusBadRequest, "Invalid request.")
 		return
 	}
-	reply(w, map[string]string{"dn": e.DN}, sess.Conn.Add(e))
+	if s.withSvc(w, func(c *ldapclient.Client) error { return c.Add(e) }) {
+		audit(sess, "raw.add", e.DN)
+		writeJSON(w, map[string]string{"dn": e.DN})
+	}
 }
 
 func (s *Server) modifyEntry(w http.ResponseWriter, r *http.Request, sess *session.Session) {
 	var ch []ldapclient.Change
 	if err := json.NewDecoder(r.Body).Decode(&ch); err != nil {
-		fail(w, http.StatusBadRequest, err.Error())
+		fail(w, http.StatusBadRequest, "Invalid request.")
 		return
 	}
-	reply(w, map[string]string{"status": "ok"}, sess.Conn.Modify(r.URL.Query().Get("dn"), ch))
+	dn := r.URL.Query().Get("dn")
+	if s.withSvc(w, func(c *ldapclient.Client) error { return c.Modify(dn, ch) }) {
+		audit(sess, "raw.modify", dn)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
 }
 
 func (s *Server) deleteEntry(w http.ResponseWriter, r *http.Request, sess *session.Session) {
-	reply(w, map[string]string{"status": "ok"}, sess.Conn.Delete(r.URL.Query().Get("dn")))
+	dn := r.URL.Query().Get("dn")
+	if s.withSvc(w, func(c *ldapclient.Client) error { return c.Delete(dn) }) {
+		audit(sess, "raw.delete", dn)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
 }
 
 func reply(w http.ResponseWriter, v any, err error) {
