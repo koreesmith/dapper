@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -60,9 +61,11 @@ func (s *Server) overlaysUnlock(w http.ResponseWriter, r *http.Request, sess *se
 			c.Close()
 		}
 		s.limit.fail(key)
-		msg := "The directory server didn't accept that name and password for its configuration."
+		// Never log the password; the name and the server's answer are what help to diagnose this.
+		log.Printf("overlays unlock failed: configuration login %q (signed in as %q): %v", strings.TrimSpace(in.DN), sess.DN, err)
+		msg := "The directory server didn't accept that name and password for its configuration. Check that the name is exactly the server's configuration root name (olcRootDN) and that a password has been set for it: this is a separate login from your directory manager. The Dapper log has the server's answer."
 		if !strings.Contains(err.Error(), "nvalid") && err != ldapclient.ErrInvalidCredentials {
-			msg = "Couldn't read the server's configuration with that account. It needs to be allowed to read and change cn=config (see the help below)."
+			msg = "Couldn't read the server's configuration with that account. It needs to be allowed to read and change cn=config (see the help below). The Dapper log has the server's answer."
 		}
 		fail(w, http.StatusUnauthorized, msg)
 		return

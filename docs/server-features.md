@@ -24,12 +24,30 @@ To create that login, run `slappasswd` on the directory server and apply this wi
 ```
 dn: olcDatabase={0}config,cn=config
 changetype: modify
-add: olcRootDN
+replace: olcRootDN
 olcRootDN: cn=admin,cn=config
 -
-add: olcRootPW
+replace: olcRootPW
 olcRootPW: {SSHA}PASTE-A-HASH-HERE
 ```
+
+(`replace` works whether or not the settings already exist.)
+
+### If unlocking fails
+
+"The directory server didn't accept that name and password" means it answered but doesn't recognise that pair.
+This login is **separate from your directory manager's**. Check on the directory server:
+
+```sh
+# What config login exists, and is a password set for it?
+sudo ldapsearch -Y EXTERNAL -H ldapi:/// -LLL -b 'olcDatabase={0}config,cn=config' -s base olcRootDN olcRootPW
+# Try the exact name and password from the server itself
+ldapwhoami -x -H ldap://localhost -D 'cn=admin,cn=config' -W
+```
+
+No `olcRootDN` or `olcRootPW` line means no remote config login exists yet: create it with the LDIF above. The name
+you type into Dapper must match `olcRootDN` exactly. Dapper writes the server's answer (never the password) to its log:
+`docker compose logs dapper | grep "unlock failed"`.
 
 The directory server must accept connections from the machine running Dapper (use LDAPS or StartTLS: this
 login can change the whole server).

@@ -4,10 +4,10 @@ import { Modal, Notice } from "./ui";
 
 const HELP_LDIF = `dn: olcDatabase={0}config,cn=config
 changetype: modify
-add: olcRootDN
+replace: olcRootDN
 olcRootDN: cn=admin,cn=config
 -
-add: olcRootPW
+replace: olcRootPW
 olcRootPW: {SSHA}PASTE-A-HASH-FROM-slappasswd-HERE`;
 
 export function Server() {
