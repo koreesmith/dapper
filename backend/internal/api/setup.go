@@ -89,7 +89,11 @@ func (s *Server) setupDiscover(w http.ResponseWriter, r *http.Request) {
 	for k, dn := range sugg {
 		exists[k], _ = c.Exists(dn)
 	}
-	writeJSON(w, map[string]any{"ok": true, "checks": checks, "contexts": ctxs, "suggestions": sugg, "exists": exists})
+	var det unixDetection
+	if len(ctxs) > 0 {
+		det = detectUnix(c, ctxs[0])
+	}
+	writeJSON(w, map[string]any{"ok": true, "checks": checks, "contexts": ctxs, "suggestions": sugg, "exists": exists, "unix": det})
 }
 
 // setupCheck validates the full candidate configuration.

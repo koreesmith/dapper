@@ -201,3 +201,27 @@ func TestClientIP(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingClasses(t *testing.T) {
+	have := map[string]bool{"posixaccount": true, "posixgroup": true}
+	if m := missingClasses(have, []string{"posixAccount", "posixGroup"}); len(m) != 0 {
+		t.Errorf("nothing should be missing: %v", m)
+	}
+	m := missingClasses(have, []string{"posixAccount", "shadowAccount", "ldapPublicKey"})
+	if len(m) != 2 || m[0] != "shadowAccount" || m[1] != "ldapPublicKey" {
+		t.Errorf("got %v", m)
+	}
+}
+
+func TestAddUniqueAndSuffix(t *testing.T) {
+	got := addUnique([]string{"inetOrgPerson", "POSIXACCOUNT"}, "posixAccount", "shadowAccount")
+	if len(got) != 3 || got[2] != "shadowAccount" {
+		t.Errorf("addUnique: %v", got)
+	}
+	if suffixOf("ou=people,dc=example,dc=org") != "dc=example,dc=org" || suffixOf("ou=people,o=corp") != "ou=people,o=corp" {
+		t.Error("suffixOf")
+	}
+	if rdnOf2 := privateGroupDN(&config.Config{Settings: config.Settings{Groups: config.Groups{BaseDN: "ou=g,dc=x"}}}, "a,b"); rdnOf2 != `cn=a\,b,ou=g,dc=x` {
+		t.Errorf("privateGroupDN escaping: %s", rdnOf2)
+	}
+}

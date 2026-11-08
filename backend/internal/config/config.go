@@ -27,6 +27,7 @@ type Settings struct {
 	Admin    Admin    `yaml:"admin"`
 	Password Password `yaml:"password"`
 	Session  Session  `yaml:"session"`
+	Unix     Unix     `yaml:"unix"`
 }
 
 // Config is Settings plus process-level options that need a restart to change.
@@ -69,6 +70,18 @@ type Admin struct {
 
 type Password struct {
 	MinLength int `yaml:"minLength"`
+}
+
+// Unix controls Linux/Unix login support: new accounts get posixAccount attributes
+// and a private group, so they work for logins on Linux servers.
+type Unix struct {
+	Enabled      bool   `yaml:"enabled"`
+	UIDMin       int    `yaml:"uidMin"`       // new numeric ids are allocated inside [UIDMin, UIDMax]
+	UIDMax       int    `yaml:"uidMax"`       //
+	HomePattern  string `yaml:"homePattern"`  // %u is replaced by the username
+	DefaultShell string `yaml:"defaultShell"` //
+	Shadow       bool   `yaml:"shadow"`       // also add the shadowAccount object class
+	SSHKeys      bool   `yaml:"sshKeys"`      // manage SSH public keys (ldapPublicKey)
 }
 
 type Session struct {
@@ -122,6 +135,18 @@ func (c *Config) WithDefaults() {
 	if c.Password.MinLength == 0 {
 		c.Password.MinLength = 8
 	}
+	if c.Unix.UIDMin == 0 {
+		c.Unix.UIDMin = 10000
+	}
+	if c.Unix.UIDMax == 0 {
+		c.Unix.UIDMax = 59999
+	}
+	if c.Unix.HomePattern == "" {
+		c.Unix.HomePattern = "/home/%u"
+	}
+	if c.Unix.DefaultShell == "" {
+		c.Unix.DefaultShell = "/bin/bash"
+	}
 	if c.Session.IdleTimeout == 0 {
 		c.Session.IdleTimeout = 30 * time.Minute
 	}
@@ -137,6 +162,19 @@ func (c *Config) Validate() error {
 	}
 	if c.Session.IdleTimeout < time.Minute || c.Session.MaxAge < c.Session.IdleTimeout {
 		return errors.New("the idle timeout must be at least a minute and no longer than the maximum session length")
+	}
+	if c.Unix.Enabled {
+		u := c.Unix
+		switch {
+		case c.Groups.BaseDN == "":
+			return errors.New("Unix accounts need a groups container, because each person gets a private group there")
+		case u.UIDMin < 1 || u.UIDMax <= u.UIDMin || u.UIDMax > 2147483647:
+			return errors.New("the Unix ID range must be positive, with the end after the start")
+		case !strings.HasPrefix(u.HomePattern, "/") || strings.ContainsAny(u.HomePattern, " \t\n"):
+			return errors.New("the home directory pattern must be an absolute path without spaces, such as /home/%u")
+		case !strings.HasPrefix(u.DefaultShell, "/") || strings.ContainsAny(u.DefaultShell, " \t\n"):
+			return errors.New("the default login shell must be an absolute path such as /bin/bash")
+		}
 	}
 	for _, u := range []string{c.LDAP.URL} {
 		if u != "" && !strings.HasPrefix(u, "ldap://") && !strings.HasPrefix(u, "ldaps://") {

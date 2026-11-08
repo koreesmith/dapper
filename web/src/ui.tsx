@@ -86,7 +86,8 @@ export function FieldEditor({ field, values, onChange, readOnly }: {
 }) {
   const id = useId();
   const vals = values.length ? values : [""];
-  const inputType = field.type === "textarea" ? undefined : field.type;
+  const multiline = field.type === "textarea" || field.type === "sshkey";
+  const inputType = multiline || field.type === "path" ? (field.type === "path" ? "text" : undefined) : field.type;
   const set = (i: number, v: string) => onChange(vals.map((x, j) => (j === i ? v : x)));
 
   if (readOnly) {
@@ -104,8 +105,9 @@ export function FieldEditor({ field, values, onChange, readOnly }: {
       <div className="finputs">
         {vals.map((v, i) => (
           <div className="frow" key={i}>
-            {field.type === "textarea"
-              ? <textarea id={`${id}-${i}`} rows={3} value={v} onChange={(e) => set(i, e.target.value)} />
+            {multiline
+              ? <textarea id={`${id}-${i}`} rows={field.type === "sshkey" ? 2 : 3} value={v} spellCheck={false}
+                  placeholder={field.type === "sshkey" ? "ssh-ed25519 AAAA… name@computer" : undefined} onChange={(e) => set(i, e.target.value)} />
               : <input id={`${id}-${i}`} type={inputType} value={v} required={field.required} onChange={(e) => set(i, e.target.value)}
                   autoComplete="off" />}
             {field.multi && vals.length > 1 && (

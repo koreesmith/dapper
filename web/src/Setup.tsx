@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { api, ApiError, Check, SetupAdmin, SettingsIO, setSetupCode } from "./api";
-import { AdminGroupField, blankSettings, Checks, ConnectionFields, LayoutFields, PasswordSessionFields, Patch } from "./SettingsParts";
+import { api, ApiError, Check, Discovery, SetupAdmin, SettingsIO, setSetupCode } from "./api";
+import { AdminGroupField, blankSettings, Checks, ConnectionFields, LayoutFields, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
 import { Notice } from "./ui";
 import { ThemePicker } from "./ThemePicker";
 
-const STEPS = ["Setup code", "Your directory", "Where things live", "Administrators", "Review"];
+const STEPS = ["Setup code", "Your directory", "Where things live", "Linux accounts", "Administrators", "Review"];
 
 export function Setup({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
@@ -17,6 +17,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [suggested, setSuggested] = useState(false);
   const [done, setDone] = useState(false);
+  const [detected, setDetected] = useState<Discovery["unix"] | null>(null);
 
   const patch: Patch = (section, values) => setS((cur) => ({ ...cur, [section]: { ...cur[section], ...values } }));
   const none = {};
@@ -38,6 +39,16 @@ export function Setup({ onDone }: { onDone: () => void }) {
     const d = await api.setupDiscover(s);
     setChecks(d.checks);
     if (!d.ok) return;
+    if (d.unix && !suggested) {
+      setDetected(d.unix);
+      if (d.unix.detected) {
+        setS((cur) => ({ ...cur, unix: {
+          ...cur.unix, enabled: true,
+          homePattern: d.unix!.homePattern || cur.unix.homePattern,
+          defaultShell: d.unix!.defaultShell || cur.unix.defaultShell,
+        } }));
+      }
+    }
     if (d.suggestions && !suggested) {
       setSuggested(true);
       setS((cur) => ({
@@ -50,7 +61,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
     setStep(2);
   });
 
-  const review = () => guard(async () => { setChecks((await api.setupCheck(s)).checks); setStep(4); });
+  const review = () => guard(async () => { setChecks((await api.setupCheck(s)).checks); setStep(5); });
 
   const finish = () => guard(async () => {
     await api.setupComplete({ settings: s, createContainers, admin });
@@ -130,6 +141,27 @@ export function Setup({ onDone }: { onDone: () => void }) {
 
         {step === 3 && (
           <>
+            <h2>Linux accounts</h2>
+            <p className="sub">Do the people in this directory log in to Linux servers or applications that use it?</p>
+            {detected?.detected && (
+              <p className="found">Found {detected.accounts} existing Linux account{detected.accounts === 1 ? "" : "s"} (highest user ID in use: {detected.highestUID}). We've matched your existing home directory and shell settings; new accounts will be numbered after the highest ID within the range below.</p>
+            )}
+            {detected?.detected && detected.highestUID > 0 && detected.highestUID < s.unix.uidMin && (
+              <p className="sub">Your existing IDs stop at {detected.highestUID}, but the range below starts at {s.unix.uidMin}.{" "}
+                <button type="button" className="link" onClick={() => patch("unix", { uidMin: detected.highestUID + 1, uidMax: Math.max(s.unix.uidMax, detected.highestUID + 1000) })}>
+                  Start new accounts at {detected.highestUID + 1} instead</button></p>
+            )}
+            <UnixFields s={s} patch={patch} />
+            {s.unix.enabled && !s.groups.baseDN && <Notice kind="error">Linux accounts need a groups container (go back one step), because each person gets a private group there.</Notice>}
+            <div className="formactions">
+              <button onClick={() => { setErr(""); setStep(2); }}>Back</button>
+              <button className="primary" disabled={s.unix.enabled && !s.groups.baseDN} onClick={() => { setErr(""); setStep(4); }}>Next</button>
+            </div>
+          </>
+        )}
+
+        {step === 4 && (
+          <>
             <h2>Administrators</h2>
             <p className="sub">Administrators can manage everyone. Who should be the first one?</p>
             <fieldset>
@@ -158,14 +190,14 @@ export function Setup({ onDone }: { onDone: () => void }) {
             </details>
             {err && <Notice kind="error">{err}</Notice>}
             <div className="formactions">
-              <button onClick={() => { setErr(""); setStep(2); }}>Back</button>
+              <button onClick={() => { setErr(""); setStep(3); }}>Back</button>
               <button className="primary" disabled={busy || !s.admin.groupDN || (admin.mode !== "existing" && !admin.username) ||
                 (admin.mode === "new" && (!admin.givenName || !admin.sn || !admin.password))} onClick={review}>Review</button>
             </div>
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             <h2>Review</h2>
             <p className="sub">Dapper tested these settings against your directory.</p>
@@ -173,7 +205,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
             {admin.mode !== "existing" && <p className="sub">The administrators group{admin.mode === "new" ? ", the new account," : ""} and {admin.username ? <strong>{admin.username}</strong> : "the person"} will be set up when you finish.</p>}
             {err && <Notice kind="error">{err}</Notice>}
             <div className="formactions">
-              <button onClick={() => { setErr(""); setStep(3); }}>Back</button>
+              <button onClick={() => { setErr(""); setStep(4); }}>Back</button>
               <button className="primary" disabled={busy || !reviewOK} onClick={finish}>{busy ? "Finishing…" : "Finish setup"}</button>
             </div>
           </>

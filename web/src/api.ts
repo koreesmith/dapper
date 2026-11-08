@@ -2,13 +2,16 @@ export interface Entry { dn: string; attrs: Record<string, string[]> }
 export interface Change { op: "add" | "replace" | "delete"; attr: string; values: string[] }
 
 export interface Field {
-  attr: string; label: string; type: "text" | "email" | "tel" | "textarea"; multi: boolean;
-  required?: boolean; userVisible: boolean; userEditable: boolean;
+  attr: string; label: string; type: "text" | "email" | "tel" | "textarea" | "path" | "sshkey"; multi: boolean;
+  required?: boolean; userVisible: boolean; userEditable: boolean; feature?: string; readOnly?: boolean;
 }
 export interface FieldValue extends Field { values: string[] }
 export type Attrs = Record<string, string[]>;
 
-export interface Features { groups: boolean; suspendByMove: boolean; passwordMinLength: number }
+export interface Features {
+  groups: boolean; suspendByMove: boolean; passwordMinLength: number;
+  unix: boolean; sshKeys: boolean; homePattern: string; defaultShell: string;
+}
 export interface Me { dn: string; name: string; isAdmin: boolean; features: Features }
 
 export interface User {
@@ -32,6 +35,7 @@ export interface SettingsIO {
   admin: { groupDN: string };
   password: { minLength: number };
   session: { idleMinutes: number; maxHours: number };
+  unix: { enabled: boolean; uidMin: number; uidMax: number; homePattern: string; defaultShell: string; shadow: boolean; sshKeys: boolean };
 }
 export interface Check { key: string; ok: boolean; warn?: boolean; message: string; missing?: string }
 export interface SettingsPayload { settings: SettingsIO; locked: Record<string, boolean>; checks: Check[]; fields: Field[] }
@@ -40,6 +44,7 @@ export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
   exists?: Record<string, boolean>;
+  unix?: { detected: boolean; accounts: number; highestUID: number; homePattern?: string; defaultShell?: string; shells?: string[] };
 }
 
 let setupCode = "";

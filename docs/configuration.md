@@ -20,12 +20,14 @@ The wizard then walks through:
    based on your directory, and can create any that don't exist yet.
 3. **Administrators:** pick an existing administrators group, make an existing person an administrator,
    or create a brand-new administrator account (handy for an empty directory).
-4. **Review:** everything is tested against your directory before anything is saved.
+4. **Linux accounts:** if people log in to Linux servers through this directory, Dapper detects your existing
+   Unix accounts and suggests matching settings; see [production.md](production.md#6-things-to-know-about-a-live-directory).
+5. **Review:** everything is tested against your directory before anything is saved.
 
 ## Changing settings later
 
 Administrators can change everything on the **Settings** page: the connection, where people and groups live,
-the administrators group, password rules and sign-out times, and which details people can see and change
+the administrators group, Linux account options (ID range, home directory, shell, SSH keys), password rules and sign-out times, and which details people can see and change
 about themselves. Settings are **tested before they're saved**, and a change that would lock you out of the
 admin screens is refused. Changes take effect immediately, with no restart.
 

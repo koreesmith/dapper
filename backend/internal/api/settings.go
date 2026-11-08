@@ -47,6 +47,15 @@ type settingsIO struct {
 		IdleMinutes int `json:"idleMinutes"`
 		MaxHours    int `json:"maxHours"`
 	} `json:"session"`
+	Unix struct {
+		Enabled      bool   `json:"enabled"`
+		UIDMin       int    `json:"uidMin"`
+		UIDMax       int    `json:"uidMax"`
+		HomePattern  string `json:"homePattern"`
+		DefaultShell string `json:"defaultShell"`
+		Shadow       bool   `json:"shadow"`
+		SSHKeys      bool   `json:"sshKeys"`
+	} `json:"unix"`
 }
 
 func toIO(c *config.Config) settingsIO {
@@ -59,6 +68,8 @@ func toIO(c *config.Config) settingsIO {
 	o.Admin.GroupDN = c.Admin.GroupDN
 	o.Password.MinLength = c.Password.MinLength
 	o.Session.IdleMinutes, o.Session.MaxHours = int(c.Session.IdleTimeout/time.Minute), int(c.Session.MaxAge/time.Hour)
+	o.Unix.Enabled, o.Unix.UIDMin, o.Unix.UIDMax = c.Unix.Enabled, c.Unix.UIDMin, c.Unix.UIDMax
+	o.Unix.HomePattern, o.Unix.DefaultShell, o.Unix.Shadow, o.Unix.SSHKeys = c.Unix.HomePattern, c.Unix.DefaultShell, c.Unix.Shadow, c.Unix.SSHKeys
 	return o
 }
 
@@ -85,6 +96,11 @@ func applyIO(base config.Settings, o settingsIO) config.Settings {
 	s.Admin.GroupDN = strings.TrimSpace(o.Admin.GroupDN)
 	s.Password.MinLength = o.Password.MinLength
 	s.Session.IdleTimeout, s.Session.MaxAge = time.Duration(o.Session.IdleMinutes)*time.Minute, time.Duration(o.Session.MaxHours)*time.Hour
+	s.Unix = config.Unix{
+		Enabled: o.Unix.Enabled, UIDMin: o.Unix.UIDMin, UIDMax: o.Unix.UIDMax,
+		HomePattern: strings.TrimSpace(o.Unix.HomePattern), DefaultShell: strings.TrimSpace(o.Unix.DefaultShell),
+		Shadow: o.Unix.Shadow, SSHKeys: o.Unix.SSHKeys,
+	}
 	return s
 }
 
@@ -166,6 +182,10 @@ func (s *Server) runChecks(cfg *config.Config) ([]check, *ldapclient.Client) {
 	container("groups", "The groups container", cfg.Groups.BaseDN, true)
 	container("suspended", "The suspended-people container", cfg.Users.SuspendedBaseDN, true)
 
+	if cfg.Unix.Enabled {
+		out = append(out, unixSchemaCheck(c, cfg))
+	}
+
 	if cfg.Admin.GroupDN == "" {
 		out = append(out, check{Key: "admin", Message: "Choose the group whose members are administrators."})
 		return out, c
@@ -192,7 +212,7 @@ func (s *Server) runChecks(cfg *config.Config) ([]check, *ldapclient.Client) {
 	return out, c
 }
 
-func (s *Server) fieldsPayload() []policy.Field { return s.policy.Fields() }
+func (s *Server) fieldsPayload() []policy.Field { return s.catalog() }
 
 func (s *Server) getSettings(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
 	cfg := s.c()
@@ -286,4 +306,40 @@ func (s *Server) putFieldPolicy(w http.ResponseWriter, r *http.Request, sess *se
 	}
 	audit(sess, "settings.fields.update", "policy")
 	writeJSON(w, map[string]any{"fields": s.policy.Fields()})
+}
+
+// unixSchemaCheck confirms the server knows the object classes Unix accounts need.
+func unixSchemaCheck(c *ldapclient.Client, cfg *config.Config) check {
+	need := []string{"posixAccount", "posixGroup"}
+	if cfg.Unix.Shadow {
+		need = append(need, "shadowAccount")
+	}
+	if cfg.Unix.SSHKeys {
+		need = append(need, "ldapPublicKey")
+	}
+	have, err := c.ObjectClassNames()
+	if err != nil || len(have) == 0 {
+		return check{Key: "unix", OK: true, Warn: true, Message: "Couldn't read the server's schema to confirm it supports Unix accounts."}
+	}
+	if missing := missingClasses(have, need); len(missing) > 0 {
+		hint := ""
+		for _, m := range missing {
+			if m == "ldapPublicKey" {
+				hint = " (SSH keys need the openssh-lpk schema; turn SSH keys off if you don't use it)"
+			}
+		}
+		return check{Key: "unix", Message: "This server's schema doesn't define: " + strings.Join(missing, ", ") + "." + hint}
+	}
+	return check{Key: "unix", OK: true, Message: "The server supports Unix accounts (" + strings.Join(need, ", ") + ")."}
+}
+
+// missingClasses returns the needed object classes the schema doesn't define.
+func missingClasses(have map[string]bool, need []string) []string {
+	var missing []string
+	for _, n := range need {
+		if !have[strings.ToLower(n)] {
+			missing = append(missing, n)
+		}
+	}
+	return missing
 }

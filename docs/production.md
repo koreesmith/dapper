@@ -80,9 +80,20 @@ The Review step tests everything before anything is saved.
 
 - **Who shows up.** Dapper lists entries with `objectClass: person` (which `inetOrgPerson` and others
   inherit) under the people container.
-- **Accounts used for Unix logins.** Accounts Dapper creates are plain `inetOrgPerson` entries. They don't
-  get `posixAccount` attributes (`uidNumber`, `gidNumber`, `homeDirectory`), so they won't work for Linux
-  logins. Editing existing accounts is fine. Creating POSIX accounts isn't supported yet.
+- **Linux logins.** The setup wizard has a **Linux accounts** step. Dapper looks at your existing
+  `posixAccount` entries and suggests matching defaults (home directory pattern, shell, how far your
+  IDs go). When this is on, every account Dapper creates gets `posixAccount` (plus `shadowAccount` if you
+  choose), a `uidNumber`, a `gidNumber`, a home directory, a login shell, and **a private group** (a
+  `posixGroup` named after the person whose gid equals their uid), so it works for logins on your Linux servers.
+  - *Numbering:* new IDs are the next free number above everything already used in the range you set
+    (default 10000–59999), checked against both users and groups. If your server's search size limit would cut
+    that check short, Dapper refuses to guess rather than risk reusing a number.
+  - *Existing accounts* keep whatever they have. Home directory and login shell can be edited; the UID and
+    GID are shown but never editable, because changing them would orphan files.
+  - *SSH keys:* if you turn this on, people can add their own public keys on My account (stored in
+    `sshPublicKey`; your server needs the `openssh-lpk` schema, and the check in Settings tells you).
+  - *Deleting* an account also deletes its private group. Group IDs aren't reused until you widen or reset the range.
+  - Dapper doesn't create the home directory on any server (that's your PAM/`mkhomedir` setup).
 - **Suspending moves the account** to the suspended container, so its DN changes. Dapper updates group
   membership in your groups container, but anything else that refers to the old DN (ACLs, other
   applications) won't follow. If that matters, use `ppolicy` locking instead.

@@ -14,8 +14,8 @@ export function MyAccount({ me }: { me: Me }) {
 
   if (!p) return <div className="page">{msg ? <Notice kind="error">{msg.text}</Notice> : "Loading…"}</div>;
 
-  const editable = p.fields.filter((f) => f.userEditable);
-  const readonly = p.fields.filter((f) => !f.userEditable);
+  const editable = p.fields.filter((f) => f.userEditable && !f.readOnly);
+  const readonly = p.fields.filter((f) => !f.userEditable || f.readOnly);
   const changes = changedAttrs(editable, form);
   const dirty = Object.keys(changes).length > 0;
 

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -121,17 +122,111 @@ func toEntries(res *ldap.SearchResult) []Entry {
 	return out
 }
 
+// pageSize is how many entries to ask for per page. Paging also gets past the
+// server-wide size limit (500 by default on OpenLDAP) that applies to ordinary,
+// non-root accounts and would otherwise silently cut results short.
+var pageSize uint32 = 250
+
+// searchRaw runs a search, following result pages until limit entries are
+// collected (0 means all). sizeLimited is true if the server cut the results
+// short with its size limit, which paging avoids when the server supports it.
+func (c *Client) searchRaw(base string, scope int, filter string, attrs []string, limit int) (out []Entry, sizeLimited bool, err error) {
+	if scope == ldap.ScopeBaseObject || limit == 1 {
+		req := ldap.NewSearchRequest(base, scope, ldap.NeverDerefAliases, limit, 0, false, filter, attrs, nil)
+		res, err := c.conn.Search(req)
+		if err != nil {
+			if res == nil || !ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded) {
+				return nil, false, err
+			}
+			sizeLimited = true
+		}
+		return toEntries(res), sizeLimited, nil
+	}
+	paging := ldap.NewControlPaging(pageSize)
+	for {
+		req := ldap.NewSearchRequest(base, scope, ldap.NeverDerefAliases, 0, 0, false, filter, attrs, []ldap.Control{paging})
+		res, err := c.conn.Search(req)
+		if err != nil {
+			if res == nil || !ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded) {
+				return nil, false, err
+			}
+			sizeLimited = true // the server doesn't page and cut us off
+		}
+		out = append(out, toEntries(res)...)
+		if limit > 0 && len(out) >= limit {
+			return out[:limit], sizeLimited, nil
+		}
+		pc, ok := ldap.FindControl(res.Controls, ldap.ControlTypePaging).(*ldap.ControlPaging)
+		if sizeLimited || !ok || len(pc.Cookie) == 0 {
+			return out, sizeLimited, nil
+		}
+		paging.SetCookie(pc.Cookie)
+	}
+}
+
 func (c *Client) search(base string, scope int, filter string, attrs []string, limit int) ([]Entry, error) {
-	req := ldap.NewSearchRequest(base, scope, ldap.NeverDerefAliases, limit, 0, false, filter, attrs, nil)
-	res, err := c.conn.Search(req)
+	es, _, err := c.searchRaw(base, scope, filter, attrs, limit)
+	return es, err
+}
+
+// ErrIncomplete means the directory cut a search short, so the answer can't be trusted.
+var ErrIncomplete = errors.New("the directory's search size limit cut the results short")
+
+// SearchComplete is like SearchAttrs but fails rather than return a truncated
+// answer. Use it when a missing entry could cause harm (for example when
+// choosing an unused uid).
+func (c *Client) SearchComplete(base, filter string, attrs []string) ([]Entry, error) {
+	es, limited, err := c.searchRaw(base, ldap.ScopeWholeSubtree, filter, attrs, 0)
 	if err != nil {
-		// A size-limit hit still returns the entries found so far; anything
-		// else (access denied, no such object, ...) is a real failure.
-		if res == nil || !ldap.IsErrorWithCode(err, ldap.LDAPResultSizeLimitExceeded) {
-			return nil, err
+		return nil, err
+	}
+	if limited {
+		return nil, ErrIncomplete
+	}
+	return es, nil
+}
+
+var ocNameRE = regexp.MustCompile(`NAME\s+(?:'([^']+)'|\(\s*((?:'[^']+'\s*)+)\))`)
+
+// ObjectClassNames returns the (lower-cased) object class names the server's schema defines.
+func (c *Client) ObjectClassNames() (map[string]bool, error) {
+	es, err := c.search("", ldap.ScopeBaseObject, "(objectClass=*)", []string{"subschemaSubentry"}, 1)
+	if err != nil || len(es) == 0 {
+		return nil, err
+	}
+	sub := first(es[0].Values("subschemaSubentry"), "cn=Subschema")
+	se, err := c.GetAttrs(sub, []string{"objectClasses"})
+	if err != nil {
+		return nil, err
+	}
+	return ParseObjectClassNames(se.Values("objectClasses")), nil
+}
+
+// ParseObjectClassNames extracts the (lower-cased) names from schema definitions
+// such as "( 1.2.3 NAME 'posixAccount' SUP top ... )" or "NAME ( 'a' 'b' )".
+func ParseObjectClassNames(defs []string) map[string]bool {
+	names := map[string]bool{}
+	quoted := regexp.MustCompile(`'([^']+)'`)
+	for _, def := range defs {
+		m := ocNameRE.FindStringSubmatch(def)
+		if m == nil {
+			continue
+		}
+		if m[1] != "" {
+			names[strings.ToLower(m[1])] = true
+		}
+		for _, n := range quoted.FindAllStringSubmatch(m[2], -1) {
+			names[strings.ToLower(n[1])] = true
 		}
 	}
-	return toEntries(res), nil
+	return names
+}
+
+func first(v []string, def string) string {
+	if len(v) > 0 {
+		return v[0]
+	}
+	return def
 }
 
 // Children lists immediate children of dn.

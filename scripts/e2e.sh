@@ -65,7 +65,7 @@ login dana3 "$U" "$TEMP";                  check "old password rejected" 401
 # --- field policy ---
 req admin PUT /api/admin/settings/fields '{"fields":[{"attr":"givenName","userEditable":true}]}'; check "policy update" 200
 req dana PATCH /api/me/profile '{"attrs":{"givenName":["Danielle"]}}'; check "policy change takes effect" 200
-req admin PUT /api/admin/settings/fields '{"fields":[{"attr":"mail","userEditable":true},{"attr":"telephoneNumber","userEditable":true},{"attr":"mobile","userEditable":true},{"attr":"street","userEditable":true},{"attr":"l","userEditable":true},{"attr":"st","userEditable":true},{"attr":"postalCode","userEditable":true}]}'; check "policy restored" 200
+req admin PUT /api/admin/settings/fields '{"fields":[{"attr":"givenName","userEditable":false},{"attr":"mail","userEditable":true},{"attr":"telephoneNumber","userEditable":true},{"attr":"mobile","userEditable":true},{"attr":"street","userEditable":true},{"attr":"l","userEditable":true},{"attr":"st","userEditable":true},{"attr":"postalCode","userEditable":true}]}'; check "policy restored" 200
 req admin PUT /api/admin/settings/fields '{"fields":[{"attr":"userPassword","userEditable":true}]}'; check "policy rejects unknown attrs" 400
 req admin PATCH "/api/admin/user?dn=$UDN" '{"attrs":{"givenName":[""]}}'; check "required field can't be blanked" 400
 

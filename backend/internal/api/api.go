@@ -257,6 +257,10 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 			"groups":            s.groupsEnabled(),
 			"suspendByMove":     s.c().Users.SuspendedBaseDN != "",
 			"passwordMinLength": s.c().Password.MinLength,
+			"unix":              s.c().Unix.Enabled,
+			"sshKeys":           s.c().Unix.Enabled && s.c().Unix.SSHKeys,
+			"homePattern":       s.c().Unix.HomePattern,
+			"defaultShell":      s.c().Unix.DefaultShell,
 		},
 	}
 	if e, err := sess.Conn.Get(sess.DN); err == nil {
@@ -272,15 +276,7 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 
 // rootDN is the top of the directory tree shown in the Advanced browser: the
 // users container's domain suffix (from its first dc= component), if any.
-func (s *Server) rootDN() string {
-	base := s.c().Users.BaseDN
-	for i := 0; i+3 <= len(base); i++ {
-		if (i == 0 || base[i-1] == ',') && strings.EqualFold(base[i:i+3], "dc=") {
-			return base[i:]
-		}
-	}
-	return base
-}
+func (s *Server) rootDN() string { return suffixOf(s.c().Users.BaseDN) }
 
 // The Advanced (raw LDAP) handlers run as the service account after the
 // admin check, and every change is audited.

@@ -8,6 +8,7 @@ export const blankSettings = (): SettingsIO => ({
   admin: { groupDN: "" },
   password: { minLength: 8 },
   session: { idleMinutes: 30, maxHours: 8 },
+  unix: { enabled: false, uidMin: 10000, uidMax: 59999, homePattern: "/home/%u", defaultShell: "/bin/bash", shadow: false, sshKeys: false },
 });
 
 export type Patch = <K extends keyof SettingsIO>(section: K, values: Partial<SettingsIO[K]>) => void;
@@ -148,5 +149,41 @@ export function Checks({ checks, pending }: { checks: Check[]; pending?: (c: Che
         );
       })}
     </ul>
+  );
+}
+
+export function UnixFields({ s, patch, hint }: { s: SettingsIO; patch: Patch; hint?: ReactNode }) {
+  const num = (v: string) => (v === "" ? 0 : Number(v));
+  return (
+    <>
+      <Row label="Linux logins">
+        <label className="inline"><input type="checkbox" checked={s.unix.enabled} onChange={(e) => patch("unix", { enabled: e.target.checked })} />
+          {" "}New accounts can log in to Linux servers (adds posixAccount details and a private group)</label>
+      </Row>
+      {hint}
+      {s.unix.enabled && (
+        <>
+          <Row label="User ID range" hint="New accounts get the next free number in this range, above everything already used in it. Group IDs match user IDs.">
+            <span className="range">
+              <input type="number" min={1} aria-label="First user ID" value={s.unix.uidMin || ""} onChange={(e) => patch("unix", { uidMin: num(e.target.value) })} />
+              <span>to</span>
+              <input type="number" min={1} aria-label="Last user ID" value={s.unix.uidMax || ""} onChange={(e) => patch("unix", { uidMax: num(e.target.value) })} />
+            </span>
+          </Row>
+          <Row label="Home directory" hint="%u becomes the username.">
+            <input value={s.unix.homePattern} onChange={(e) => patch("unix", { homePattern: e.target.value })} />
+          </Row>
+          <Row label="Default login shell">
+            <input value={s.unix.defaultShell} onChange={(e) => patch("unix", { defaultShell: e.target.value })} />
+          </Row>
+          <Row label="Options">
+            <span className="checks">
+              <label className="inline"><input type="checkbox" checked={s.unix.shadow} onChange={(e) => patch("unix", { shadow: e.target.checked })} /> Also add shadowAccount (password-aging attributes)</label>
+              <label className="inline"><input type="checkbox" checked={s.unix.sshKeys} onChange={(e) => patch("unix", { sshKeys: e.target.checked })} /> Manage SSH public keys (people can add their own)</label>
+            </span>
+          </Row>
+        </>
+      )}
+    </>
   );
 }

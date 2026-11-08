@@ -4,4 +4,4 @@ backend:  ; cd backend && go run ./cmd/dapper
 web:      ; cd web && npm run dev
 build:    ; cd web && npm run build && cd ../backend && go build -o bin/dapper ./cmd/dapper
 test: ; cd backend && go vet ./... && go test ./... && cd ../web && npm run build
-e2e:  ; ./scripts/e2e.sh
+e2e:  ; ./scripts/e2e.sh && ./scripts/e2e-unix.sh

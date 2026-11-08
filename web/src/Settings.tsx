@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, Check, Field, SettingsIO } from "./api";
-import { AdminGroupField, AdvancedFields, Checks, ConnectionFields, LayoutFields, Locked, PasswordSessionFields, Patch } from "./SettingsParts";
+import { AdminGroupField, AdvancedFields, Checks, ConnectionFields, LayoutFields, Locked, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
 import { Notice } from "./ui";
 
 type Msg = { kind: "ok" | "error"; text: string } | null;
@@ -58,6 +58,8 @@ export function Settings() {
         <h3>Where things live</h3>
         <LayoutFields s={s} patch={patch} locked={locked} />
         <AdminGroupField s={s} patch={patch} locked={locked} />
+        <h3>Linux accounts</h3>
+        <UnixFields s={s} patch={patch} />
         <h3>Passwords and sign-out</h3>
         <PasswordSessionFields s={s} patch={patch} />
         <AdvancedFields s={s} patch={patch} />

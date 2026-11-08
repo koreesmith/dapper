@@ -72,7 +72,11 @@ type fieldValue struct {
 
 func (s *Server) fieldValues(e *ldapclient.Entry, keep func(policy.Field) bool) []fieldValue {
 	var out []fieldValue
-	for _, f := range s.policy.Fields() {
+	for _, f := range s.catalog() {
+		// Unix details only make sense on accounts that are Unix accounts.
+		if f.Feature == "unix" && !hasObjectClass(e, "posixAccount") {
+			continue
+		}
 		if keep(f) {
 			v := e.Values(f.Attr)
 			if v == nil {
@@ -153,9 +157,15 @@ func (s *Server) buildChanges(cur *ldapclient.Entry, in map[string][]string, all
 	var changes []ldapclient.Change
 	want := map[string][]string{}
 	for attr, vals := range in {
-		f, ok := s.policy.Field(attr)
+		f, ok := s.field(attr)
 		if !ok {
 			return nil, validationError("Unknown field: " + attr)
+		}
+		if f.ReadOnly {
+			return nil, forbiddenError(f.Label + " can't be changed here.")
+		}
+		if f.Feature == "unix" && !hasObjectClass(cur, "posixAccount") {
+			return nil, validationError("This account isn't a Unix account, so its Unix login details can't be changed here.")
 		}
 		if !allow(f) {
 			return nil, forbiddenError("You aren't allowed to change " + f.Label + ".")
@@ -175,6 +185,10 @@ func (s *Server) buildChanges(cur *ldapclient.Entry, in map[string][]string, all
 		}
 		want[f.Attr] = vals
 		changes = append(changes, ldapclient.Change{Op: "replace", Attr: f.Attr, Values: vals})
+	}
+	// A first SSH key needs the auxiliary class that allows the attribute.
+	if keys := want["sshPublicKey"]; len(keys) > 0 && !hasObjectClass(cur, "ldapPublicKey") {
+		changes = append([]ldapclient.Change{{Op: "add", Attr: "objectClass", Values: []string{"ldapPublicKey"}}}, changes...)
 	}
 	// Keep the full name (cn) and, if it was auto-derived, the display name in step.
 	gn, hasGN := want["givenName"]
@@ -244,7 +258,10 @@ func (s *Server) personAttrs(cfg *config.Config, username string, in map[string]
 		return nil, validationError("Usernames must be 2\u201332 characters: lowercase letters, numbers, dots, dashes or underscores, starting with a letter or number.")
 	}
 	attrs := map[string][]string{}
-	for _, f := range s.policy.Fields() {
+	for _, f := range s.catalogFor(cfg) {
+		if f.ReadOnly {
+			continue // ids are allocated, never typed in
+		}
 		vals := policy.Clean(in[f.Attr])
 		if !f.Multi && len(vals) > 1 {
 			vals = vals[:1]
@@ -330,8 +347,22 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 	var dn string
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
 		var err error
+		gid := 0
+		if cfg.Unix.Enabled {
+			unixMu.Lock() // keep "pick a free number" and "use it" together
+			defer unixMu.Unlock()
+			if gid, err = s.prepareUnix(c, cfg, username, attrs, first(in.Attrs["uidNumber"])); err != nil {
+				return err
+			}
+		}
 		if dn, err = s.addPerson(c, cfg, username, attrs, password); err != nil {
 			return err
+		}
+		if cfg.Unix.Enabled {
+			if err := addPrivateGroup(c, cfg, username, gid); err != nil {
+				_ = c.Delete(dn) // no half-made account
+				return err
+			}
 		}
 		for _, g := range in.Groups {
 			e, err := c.GetAttrs(g, []string{cfg.Groups.MemberAttribute})
@@ -431,11 +462,21 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		fail(w, http.StatusBadRequest, "You can't delete your own account.")
 		return
 	}
+	cfg := s.c()
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
+		var uid, gid string
+		if cfg.Unix.Enabled {
+			if e, err := c.GetAttrs(dn, []string{"uid", "gidNumber"}); err == nil {
+				uid, gid = first(e.Values("uid")), first(e.Values("gidNumber"))
+			}
+		}
 		if err := s.replaceInGroups(c, dn, ""); err != nil {
 			return err
 		}
-		return c.Delete(dn)
+		if err := c.Delete(dn); err != nil {
+			return err
+		}
+		return removePrivateGroup(c, cfg, uid, gid)
 	}) {
 		return
 	}

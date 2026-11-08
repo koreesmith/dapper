@@ -67,3 +67,36 @@ func TestValidate(t *testing.T) {
 		t.Error("idle timeout longer than max age accepted")
 	}
 }
+
+func TestUnixValidation(t *testing.T) {
+	ok := func() *Config {
+		c := &Config{}
+		c.WithDefaults()
+		c.Groups.BaseDN = "ou=groups,dc=x"
+		c.Unix.Enabled = true
+		return c
+	}
+	if err := ok().Validate(); err != nil {
+		t.Fatalf("defaults should be valid: %v", err)
+	}
+	cases := map[string]func(*Config){
+		"needs a groups container": func(c *Config) { c.Groups.BaseDN = "" },
+		"backwards range":          func(c *Config) { c.Unix.UIDMin, c.Unix.UIDMax = 20000, 10000 },
+		"zero start":               func(c *Config) { c.Unix.UIDMin = -1 },
+		"relative home":            func(c *Config) { c.Unix.HomePattern = "home/%u" },
+		"home with a space":        func(c *Config) { c.Unix.HomePattern = "/home/my users/%u" },
+		"relative shell":           func(c *Config) { c.Unix.DefaultShell = "bash" },
+	}
+	for name, mutate := range cases {
+		c := ok()
+		mutate(c)
+		if c.Validate() == nil {
+			t.Errorf("%s should be rejected", name)
+		}
+	}
+	off := ok()
+	off.Unix.Enabled, off.Groups.BaseDN = false, ""
+	if off.Validate() != nil {
+		t.Error("Unix off shouldn't need a groups container")
+	}
+}

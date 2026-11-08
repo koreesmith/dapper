@@ -20,7 +20,7 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
 
   if (!p) return <div className="page">{msg ? <Notice kind="error">{msg.text}</Notice> : "Loading…"}<p><a href="#/people">← Back to people</a></p></div>;
 
-  const changes = changedAttrs(p.fields, form);
+  const changes = changedAttrs(p.fields.filter((f) => !f.readOnly), form);
   const dirty = Object.keys(changes).length > 0;
 
   const save = async (e: React.FormEvent) => {
@@ -61,7 +61,7 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
       <form className="panel" onSubmit={save}>
         <h3>Details</h3>
         {p.fields.map((f) => (
-          <FieldEditor key={f.attr} field={f} values={form[f.attr] ?? []} onChange={(v) => setForm({ ...form, [f.attr]: v })} />
+          <FieldEditor key={f.attr} field={f} readOnly={f.readOnly} values={form[f.attr] ?? []} onChange={(v) => setForm({ ...form, [f.attr]: v })} />
         ))}
         <div className="formactions">
           <button className="primary" disabled={!dirty || saving}>{saving ? "Saving…" : "Save changes"}</button>

@@ -22,6 +22,8 @@ type Field struct {
 	Type         string `json:"type"` // text, email, tel, textarea
 	Multi        bool   `json:"multi"`
 	Required     bool   `json:"required,omitempty"` // needed when creating an account
+	Feature      string `json:"feature,omitempty"`  // "unix" or "ssh": only offered when that feature is on
+	ReadOnly     bool   `json:"readOnly,omitempty"` // shown to admins but never edited here (e.g. uidNumber)
 	UserVisible  bool   `json:"userVisible"`        // user can see it on their own profile
 	UserEditable bool   `json:"userEditable"`       // user can change it
 }
@@ -40,6 +42,12 @@ var defaults = []Field{
 	{Attr: "st", Label: "State / province", Type: "text", UserVisible: true, UserEditable: true},
 	{Attr: "postalCode", Label: "Postal code", Type: "text", UserVisible: true, UserEditable: true},
 	{Attr: "description", Label: "Notes (admins only)", Type: "textarea"},
+	// Unix login details (shown only when Unix accounts are turned on).
+	{Attr: "uidNumber", Label: "User ID (UID)", Type: "text", Feature: "unix", ReadOnly: true, UserVisible: true},
+	{Attr: "gidNumber", Label: "Primary group ID (GID)", Type: "text", Feature: "unix", ReadOnly: true, UserVisible: true},
+	{Attr: "homeDirectory", Label: "Home directory", Type: "path", Feature: "unix", UserVisible: true},
+	{Attr: "loginShell", Label: "Login shell", Type: "path", Feature: "unix", UserVisible: true},
+	{Attr: "sshPublicKey", Label: "SSH public keys", Type: "sshkey", Multi: true, Feature: "ssh", UserVisible: true, UserEditable: true},
 }
 
 type override struct {
@@ -79,6 +87,9 @@ func (p *Policy) Fields() []Field {
 		if o, ok := p.over[f.Attr]; ok {
 			f.UserVisible, f.UserEditable = o.UserVisible, o.UserEditable
 		}
+		if f.ReadOnly {
+			f.UserEditable = false
+		}
 		if f.UserEditable {
 			f.UserVisible = true // you cannot edit what you cannot see
 		}
@@ -99,12 +110,18 @@ func (p *Policy) Field(attr string) (Field, bool) {
 
 // Update replaces the user-visibility settings and persists them.
 func (p *Policy) Update(in []Field) error {
-	next := map[string]override{}
+	p.mu.RLock()
+	next := make(map[string]override, len(p.over))
+	for k, v := range p.over {
+		next[k] = v // keep choices for fields not shown (e.g. a feature that's switched off)
+	}
+	p.mu.RUnlock()
 	for _, f := range in {
 		if _, ok := lookup(f.Attr); !ok {
 			return fmt.Errorf("unknown field %q", f.Attr)
 		}
-		next[f.Attr] = override{UserVisible: f.UserVisible || f.UserEditable, UserEditable: f.UserEditable}
+		def, _ := lookup(f.Attr)
+		next[f.Attr] = override{UserVisible: f.UserVisible || f.UserEditable, UserEditable: f.UserEditable && !def.ReadOnly}
 	}
 	b, err := yaml.Marshal(next)
 	if err != nil {
@@ -135,18 +152,30 @@ func lookup(attr string) (Field, bool) {
 	return Field{}, false
 }
 
-var phoneRE = regexp.MustCompile(`^[0-9+().\-\s]{3,32}$`)
+var (
+	phoneRE = regexp.MustCompile(`^[0-9+().\-\s]{3,32}$`)
+	pathRE  = regexp.MustCompile(`^/[A-Za-z0-9._/@+-]*$`)
+	sshRE   = regexp.MustCompile(`^(ssh-(rsa|ed25519|dss)|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) [A-Za-z0-9+/]+={0,2}( .{0,200})?$`)
+)
 
 // Validate checks values for a field and returns a friendly error.
 func Validate(f Field, values []string) error {
 	for _, v := range values {
-		if len(v) > 256 && f.Type != "textarea" || len(v) > 2048 {
+		if len(v) > 256 && f.Type != "textarea" && f.Type != "sshkey" || len(v) > 8192 {
 			return fmt.Errorf("%s is too long", f.Label)
 		}
 		switch f.Type {
 		case "email":
 			if a, err := mail.ParseAddress(v); err != nil || a.Address != v {
 				return fmt.Errorf("%q is not a valid email address", v)
+			}
+		case "path":
+			if !pathRE.MatchString(v) {
+				return fmt.Errorf("%q isn't a valid absolute path (use letters, numbers and . _ - / only)", v)
+			}
+		case "sshkey":
+			if !sshRE.MatchString(v) || strings.ContainsAny(v, "\r\n") {
+				return fmt.Errorf("that doesn't look like an SSH public key (it should start with ssh-ed25519, ssh-rsa or ecdsa-sha2-... followed by the key)")
 			}
 		case "tel":
 			if !phoneRE.MatchString(v) {

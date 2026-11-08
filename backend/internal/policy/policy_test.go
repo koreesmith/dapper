@@ -47,3 +47,37 @@ func TestValidate(t *testing.T) {
 		t.Errorf("clean: %v", got)
 	}
 }
+
+func TestUnixFieldValidation(t *testing.T) {
+	path, _ := lookup("homeDirectory")
+	key, _ := lookup("sshPublicKey")
+	for _, ok := range []string{"/home/alice", "/bin/bash", "/usr/sbin/nologin"} {
+		if Validate(path, []string{ok}) != nil {
+			t.Errorf("%q should be a valid path", ok)
+		}
+	}
+	for _, bad := range []string{"home/alice", "/home/a b", "/home/a;rm", ""} {
+		if bad != "" && Validate(path, []string{bad}) == nil {
+			t.Errorf("%q should be rejected", bad)
+		}
+	}
+	good := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFake alice@laptop"
+	if Validate(key, []string{good}) != nil {
+		t.Error("valid key rejected")
+	}
+	for _, bad := range []string{"hello world", "ssh-ed25519", "ssh-ed25519 AAAA\ncommand=\"x\" ssh-rsa BBBB"} {
+		if Validate(key, []string{bad}) == nil {
+			t.Errorf("bad key accepted: %q", bad)
+		}
+	}
+}
+
+func TestReadOnlyFieldsCannotBecomeUserEditable(t *testing.T) {
+	p, _ := Load(t.TempDir())
+	if err := p.Update([]Field{{Attr: "uidNumber", UserEditable: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := p.Field("uidNumber"); f.UserEditable {
+		t.Fatal("uidNumber must never be user-editable")
+	}
+}
