@@ -1,0 +1,21 @@
+# Optional: a throwaway demo OpenLDAP server with sample people, for trying Dapper
+# without a directory of your own.
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+# Then run the setup wizard with:
+#   Server address         ldap://openldap:389
+#   Service account        cn=admin,dc=example,dc=org   password: admin
+#   Administrators group   cn=dapper-admins,ou=groups,dc=example,dc=org  (use an existing group)
+# Sign in afterwards as alice / alicepass (admin) or bob / bobpass.
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: Example
+      LDAP_DOMAIN: example.org
+      LDAP_ADMIN_PASSWORD: admin
+    command: --copy-service
+    volumes:
+      - ./deploy/dev-seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif:ro
+    ports:
+      - "389:389"
+      - "636:636"

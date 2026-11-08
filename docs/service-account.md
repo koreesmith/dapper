@@ -42,5 +42,5 @@ to dn.subtree="ou=groups,dc=example,dc=org"
 If a change is refused for lack of permission, Dapper says so in plain language and
 points at the service account.
 
-The development stack in `docker-compose.yml` uses the directory's root account for convenience.
+The demo stack in `docker-compose.demo.yml` uses the directory's root account for convenience.
 Don't do that in production.

@@ -25,25 +25,39 @@ export interface PersonDetail {
 export interface Profile { dn: string; username: string; name: string; fields: FieldValue[]; groups: string[] }
 export interface GroupSummary { dn: string; name: string; members: number; admin?: boolean }
 export interface GroupDetail { dn: string; name: string; members: { dn: string; username: string; name: string }[] }
-export interface Settings {
-  connection: {
-    ok: boolean; message: string; url: string; startTLS: boolean; bindDN: string; usersBaseDN: string;
-    groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string;
-  };
-  fields: Field[];
+export interface SettingsIO {
+  ldap: { url: string; startTLS: boolean; skipVerify: boolean; bindDN: string; bindPassword?: string; bindPasswordSet?: boolean };
+  users: { baseDN: string; loginAttributes: string[]; suspendedBaseDN: string; objectClasses: string[]; rdnAttribute: string };
+  groups: { baseDN: string; objectClass: string; memberAttribute: string };
+  admin: { groupDN: string };
+  password: { minLength: number };
+  session: { idleMinutes: number; maxHours: number };
+}
+export interface Check { key: string; ok: boolean; warn?: boolean; message: string; missing?: string }
+export interface SettingsPayload { settings: SettingsIO; locked: Record<string, boolean>; checks: Check[]; fields: Field[] }
+export interface SetupAdmin { mode: "existing" | "person" | "new"; username: string; givenName: string; sn: string; password: string }
+export interface Discovery {
+  ok: boolean; checks: Check[]; contexts?: string[];
+  suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
+  exists?: Record<string, boolean>;
 }
 
+let setupCode = "";
+export const setSetupCode = (c: string) => { setupCode = c; };
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, { ...init, headers: { "Content-Type": "application/json", "X-Requested-With": "dapper" } });
+  const headers: Record<string, string> = { "Content-Type": "application/json", "X-Requested-With": "dapper" };
+  if (setupCode && path.startsWith("/api/setup/")) headers["X-Setup-Code"] = setupCode;
+  const r = await fetch(path, { ...init, headers });
   if (r.status === 204) return undefined as T;
   let body: { error?: string } = {};
   try { body = await r.json(); } catch { /* non-JSON error page */ }
-  if (!r.ok) throw new ApiError(body.error ?? "Something went wrong. Please try again.", r.status);
+  if (!r.ok) throw new ApiError(body.error ?? "Something went wrong. Please try again.", r.status, body);
   return body as T;
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(message: string, public status: number, public data?: unknown) { super(message); }
 }
 
 const q = (dn: string) => `dn=${encodeURIComponent(dn)}`;
@@ -82,8 +96,17 @@ export const api = {
     req(`/api/admin/group/members?${q(group)}&member=${encodeURIComponent(member)}`, { method: "DELETE" }),
 
   // settings
-  settings: () => req<Settings>("/api/admin/settings"),
+  settings: () => req<SettingsPayload>("/api/admin/settings"),
+  checkSettings: (s: SettingsIO) => req<{ ok: boolean; checks: Check[] }>("/api/admin/settings/check", json("POST", s)),
+  saveSettings: (s: SettingsIO) => req<SettingsPayload>("/api/admin/settings", json("PUT", s)),
   saveFieldPolicy: (fields: Field[]) => req<{ fields: Field[] }>("/api/admin/settings/fields", json("PUT", { fields })),
+
+  // first-run setup
+  setupStatus: () => req<{ configured: boolean }>("/api/setup/status"),
+  setupDiscover: (s: SettingsIO) => req<Discovery>("/api/setup/discover", json("POST", s)),
+  setupCheck: (s: SettingsIO) => req<{ ok: boolean; checks: Check[] }>("/api/setup/check", json("POST", s)),
+  setupComplete: (b: { settings: SettingsIO; createContainers: boolean; admin: SetupAdmin }) =>
+    req<{ ok: boolean }>("/api/setup/complete", json("POST", b)),
 
   // advanced (raw directory)
   children: (dn?: string) => req<Entry[]>(`/api/admin/children?${dn ? q(dn) : ""}`),

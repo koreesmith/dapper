@@ -104,7 +104,9 @@ func newTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{cfg: &config.Config{Password: config.Password{MinLength: 8}}, policy: pol}
+	cfg := &config.Config{}
+	cfg.Password.MinLength = 8
+	return &Server{store: config.Static(cfg), policy: pol}
 }
 
 func entryOf(attrs map[string][]string) *ldapclient.Entry {

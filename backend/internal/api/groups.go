@@ -12,11 +12,11 @@ import (
 	"github.com/koreesmith/dapper/backend/internal/users"
 )
 
-func (s *Server) groupsEnabled() bool { return s.cfg.Groups.BaseDN != "" }
+func (s *Server) groupsEnabled() bool { return s.c().Groups.BaseDN != "" }
 
 // placeholderDN fills a group's member list when it would otherwise be empty:
 // groupOfNames requires at least one member.
-func (s *Server) placeholderDN() string { return "cn=dapper-placeholder," + s.cfg.Groups.BaseDN }
+func (s *Server) placeholderDN() string { return "cn=dapper-placeholder," + s.c().Groups.BaseDN }
 
 func (s *Server) isPlaceholder(dn string) bool { return strings.EqualFold(dn, s.placeholderDN()) }
 
@@ -37,14 +37,14 @@ func (s *Server) setMembers(c *ldapclient.Client, groupDN string, members []stri
 	if len(members) == 0 {
 		members = []string{s.placeholderDN()}
 	}
-	return c.Modify(groupDN, []ldapclient.Change{{Op: "replace", Attr: s.cfg.Groups.MemberAttribute, Values: members}})
+	return c.Modify(groupDN, []ldapclient.Change{{Op: "replace", Attr: s.c().Groups.MemberAttribute, Values: members}})
 }
 
 func (s *Server) memberships(c *ldapclient.Client, dn string) ([]ldapclient.Group, error) {
 	if !s.groupsEnabled() {
 		return nil, nil
 	}
-	return c.GroupsOfMember(s.cfg.Groups.BaseDN, s.cfg.Groups.ObjectClass, s.cfg.Groups.MemberAttribute, dn)
+	return c.GroupsOfMember(s.c().Groups.BaseDN, s.c().Groups.ObjectClass, s.c().Groups.MemberAttribute, dn)
 }
 
 // replaceInGroups rewrites oldDN to newDN (or removes it when newDN is empty)
@@ -54,7 +54,7 @@ func (s *Server) replaceInGroups(c *ldapclient.Client, oldDN, newDN string) erro
 	if !s.groupsEnabled() {
 		return nil
 	}
-	gs, err := c.Groups(s.cfg.Groups.BaseDN, s.cfg.Groups.ObjectClass, s.cfg.Groups.MemberAttribute)
+	gs, err := c.Groups(s.c().Groups.BaseDN, s.c().Groups.ObjectClass, s.c().Groups.MemberAttribute)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (s *Server) groupDN(dn string) (string, error) {
 	if !s.groupsEnabled() {
 		return "", validationError("Group management isn't configured.")
 	}
-	if !underBase(s.cfg.Groups.BaseDN, dn) {
+	if !underBase(s.c().Groups.BaseDN, dn) {
 		return "", validationError("That group isn't managed by Dapper.")
 	}
 	return dn, nil
@@ -104,9 +104,9 @@ func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request, _ *session.S
 	}
 	var out []groupSummary
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		gs, err := c.Groups(s.cfg.Groups.BaseDN, s.cfg.Groups.ObjectClass, s.cfg.Groups.MemberAttribute)
+		gs, err := c.Groups(s.c().Groups.BaseDN, s.c().Groups.ObjectClass, s.c().Groups.MemberAttribute)
 		for _, g := range gs {
-			out = append(out, groupSummary{DN: g.DN, Name: g.Name, Members: len(s.realMembers(g.Members)), Admin: eqFold(g.DN, s.cfg.Admin.GroupDN)})
+			out = append(out, groupSummary{DN: g.DN, Name: g.Name, Members: len(s.realMembers(g.Members)), Admin: eqFold(g.DN, s.c().Admin.GroupDN)})
 		}
 		return err
 	}) {
@@ -136,11 +136,11 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request, sess *sessi
 		fail(w, http.StatusBadRequest, "Group names may use letters, numbers, spaces, dots, dashes and underscores (up to 64 characters).")
 		return
 	}
-	dn := "cn=" + in.Name + "," + s.cfg.Groups.BaseDN
+	dn := "cn=" + in.Name + "," + s.c().Groups.BaseDN
 	attrs := map[string][]string{
-		"objectClass":                {s.cfg.Groups.ObjectClass},
+		"objectClass":                {s.c().Groups.ObjectClass},
 		"cn":                         {in.Name},
-		s.cfg.Groups.MemberAttribute: {s.placeholderDN()},
+		s.c().Groups.MemberAttribute: {s.placeholderDN()},
 	}
 	if d := strings.TrimSpace(in.Description); d != "" {
 		attrs["description"] = []string{d}
@@ -168,14 +168,14 @@ func (s *Server) getGroup(w http.ResponseWriter, r *http.Request, _ *session.Ses
 		Members []member `json:"members"`
 	}{DN: dn, Members: []member{}}
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		e, err := c.GetAttrs(dn, []string{"cn", s.cfg.Groups.MemberAttribute})
+		e, err := c.GetAttrs(dn, []string{"cn", s.c().Groups.MemberAttribute})
 		if err != nil {
 			return err
 		}
 		if v := e.Values("cn"); len(v) > 0 {
 			out.Name = v[0]
 		}
-		for _, m := range s.realMembers(e.Values(s.cfg.Groups.MemberAttribute)) {
+		for _, m := range s.realMembers(e.Values(s.c().Groups.MemberAttribute)) {
 			mem := member{DN: m, Name: m}
 			if pe, err := c.GetAttrs(m, users.Attrs); err == nil {
 				u := users.FromEntry(*pe)
@@ -199,7 +199,7 @@ func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request, sess *sessi
 		failLDAP(w, err)
 		return
 	}
-	if eqFold(dn, s.cfg.Admin.GroupDN) {
+	if eqFold(dn, s.c().Admin.GroupDN) {
 		fail(w, http.StatusBadRequest, "This is the administrators group that controls who can sign in as an admin, so it can't be deleted here.")
 		return
 	}
@@ -227,16 +227,16 @@ func (s *Server) changeMember(add bool) handler {
 			failLDAP(w, err)
 			return
 		}
-		if !add && eqFold(gdn, s.cfg.Admin.GroupDN) && eqFold(member, sess.DN) {
+		if !add && eqFold(gdn, s.c().Admin.GroupDN) && eqFold(member, sess.DN) {
 			fail(w, http.StatusBadRequest, "You can't remove yourself from the administrators group.")
 			return
 		}
 		if !s.withSvc(w, func(c *ldapclient.Client) error {
-			e, err := c.GetAttrs(gdn, []string{s.cfg.Groups.MemberAttribute})
+			e, err := c.GetAttrs(gdn, []string{s.c().Groups.MemberAttribute})
 			if err != nil {
 				return err
 			}
-			cur := s.realMembers(e.Values(s.cfg.Groups.MemberAttribute))
+			cur := s.realMembers(e.Values(s.c().Groups.MemberAttribute))
 			var next []string
 			found := false
 			for _, m := range cur {

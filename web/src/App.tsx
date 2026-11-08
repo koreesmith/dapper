@@ -8,17 +8,23 @@ import { MyAccount } from "./MyAccount";
 import { GroupDetail, Groups } from "./Groups";
 import { Settings } from "./Settings";
 import { Advanced } from "./Advanced";
+import { Setup } from "./Setup";
 import { go, useRoute } from "./router";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
+  const [configured, setConfigured] = useState(true);
 
   useEffect(() => {
-    api.me().then(setMe).catch(() => {}).finally(() => setChecked(true));
+    Promise.all([
+      api.setupStatus().then((r) => setConfigured(r.configured)).catch(() => {}),
+      api.me().then(setMe).catch(() => {}),
+    ]).finally(() => setChecked(true));
   }, []);
 
   if (!checked) return null;
+  if (!configured) return <Setup onDone={() => { setConfigured(true); go("/"); }} />;
   if (!me) return <Login onSignedIn={(m) => { setMe(m); go(m.isAdmin ? "/people" : "/me"); }} />;
   return <Shell me={me} onSignOut={() => api.logout().then(() => { setMe(null); go("/"); })} />;
 }

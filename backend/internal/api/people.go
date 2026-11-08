@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koreesmith/dapper/backend/internal/config"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
 	"github.com/koreesmith/dapper/backend/internal/policy"
 	"github.com/koreesmith/dapper/backend/internal/session"
@@ -27,14 +28,14 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ *session.Se
 	var all []users.User
 	truncated := false
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		bases := []string{s.cfg.Users.BaseDN}
-		if s.cfg.Users.SuspendedBaseDN != "" {
-			bases = append(bases, s.cfg.Users.SuspendedBaseDN)
+		bases := []string{s.c().Users.BaseDN}
+		if s.c().Users.SuspendedBaseDN != "" {
+			bases = append(bases, s.c().Users.SuspendedBaseDN)
 		}
 		for _, base := range bases {
 			entries, trunc, err := c.ListPeople(base, users.Attrs, maxUsers)
 			if err != nil {
-				if ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) && base != s.cfg.Users.BaseDN {
+				if ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) && base != s.c().Users.BaseDN {
 					continue // suspended container not created yet
 				}
 				return err
@@ -237,35 +238,22 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, sess *sessio
 
 var usernameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
 
-func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *session.Session) {
-	var in struct {
-		Username string              `json:"username"`
-		Attrs    map[string][]string `json:"attrs"`
-		Password string              `json:"password"`
-		Groups   []string            `json:"groups"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		fail(w, http.StatusBadRequest, "Invalid request.")
-		return
-	}
-	username := strings.ToLower(strings.TrimSpace(in.Username))
+// personAttrs validates input and builds the attributes for a new account.
+func (s *Server) personAttrs(cfg *config.Config, username string, in map[string][]string) (map[string][]string, error) {
 	if !usernameRE.MatchString(username) {
-		fail(w, http.StatusBadRequest, "Usernames must be 2–32 characters: lowercase letters, numbers, dots, dashes or underscores, starting with a letter or number.")
-		return
+		return nil, validationError("Usernames must be 2\u201332 characters: lowercase letters, numbers, dots, dashes or underscores, starting with a letter or number.")
 	}
 	attrs := map[string][]string{}
 	for _, f := range s.policy.Fields() {
-		vals := policy.Clean(in.Attrs[f.Attr])
+		vals := policy.Clean(in[f.Attr])
 		if !f.Multi && len(vals) > 1 {
 			vals = vals[:1]
 		}
 		if f.Required && len(vals) == 0 {
-			fail(w, http.StatusBadRequest, f.Label+" is required.")
-			return
+			return nil, validationError(f.Label + " is required.")
 		}
 		if err := policy.Validate(f, vals); err != nil {
-			fail(w, http.StatusBadRequest, err.Error())
-			return
+			return nil, validationError(err.Error())
 		}
 		if len(vals) > 0 {
 			attrs[f.Attr] = vals
@@ -277,8 +265,54 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		attrs["displayName"] = []string{full}
 	}
 	attrs["uid"] = []string{username}
-	attrs["objectClass"] = s.cfg.Users.ObjectClasses
+	attrs["objectClass"] = cfg.Users.ObjectClasses
+	return attrs, nil
+}
 
+// addPerson creates an account and sets its password, undoing the account if the
+// password can't be set. Usernames must be unique across active and suspended people.
+func (s *Server) addPerson(c *ldapclient.Client, cfg *config.Config, username string, attrs map[string][]string, password string) (string, error) {
+	for _, base := range []string{cfg.Users.BaseDN, cfg.Users.SuspendedBaseDN} {
+		if base == "" {
+			continue
+		}
+		es, err := c.SearchAttrs(base, "(uid="+ldapEscape(username)+")", []string{"uid"}, 1)
+		if err != nil && !ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) {
+			return "", err
+		}
+		if len(es) > 0 {
+			return "", validationError("The username \u201c" + username + "\u201d is already taken.")
+		}
+	}
+	dn := cfg.Users.RDNAttribute + "=" + escapeRDN(username) + "," + cfg.Users.BaseDN
+	if err := c.Add(ldapclient.Entry{DN: dn, Attrs: attrs}); err != nil {
+		return "", err
+	}
+	if err := c.SetPassword(dn, password); err != nil {
+		_ = c.Delete(dn) // don't leave a half-created account behind
+		return "", err
+	}
+	return dn, nil
+}
+
+func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *session.Session) {
+	var in struct {
+		Username string              `json:"username"`
+		Attrs    map[string][]string `json:"attrs"`
+		Password string              `json:"password"`
+		Groups   []string            `json:"groups"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		fail(w, http.StatusBadRequest, "Invalid request.")
+		return
+	}
+	cfg := s.c()
+	username := strings.ToLower(strings.TrimSpace(in.Username))
+	attrs, err := s.personAttrs(cfg, username, in.Attrs)
+	if err != nil {
+		failLDAP(w, err)
+		return
+	}
 	password, generated := in.Password, false
 	if password == "" {
 		password, generated = generatePassword(14), true
@@ -293,34 +327,18 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		}
 	}
 
-	dn := s.cfg.Users.RDNAttribute + "=" + escapeRDN(username) + "," + s.cfg.Users.BaseDN
+	var dn string
 	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		// Usernames must be unique across active and suspended accounts.
-		for _, base := range []string{s.cfg.Users.BaseDN, s.cfg.Users.SuspendedBaseDN} {
-			if base == "" {
-				continue
-			}
-			es, err := c.SearchAttrs(base, "(uid="+ldapEscape(username)+")", []string{"uid"}, 1)
-			if err != nil && !ldapclient.IsCode(err, ldapclient.CodeNoSuchObject) {
-				return err
-			}
-			if len(es) > 0 {
-				return validationError("The username “" + username + "” is already taken.")
-			}
-		}
-		if err := c.Add(ldapclient.Entry{DN: dn, Attrs: attrs}); err != nil {
-			return err
-		}
-		if err := c.SetPassword(dn, password); err != nil {
-			_ = c.Delete(dn) // don't leave a half-created account behind
+		var err error
+		if dn, err = s.addPerson(c, cfg, username, attrs, password); err != nil {
 			return err
 		}
 		for _, g := range in.Groups {
-			e, err := c.GetAttrs(g, []string{s.cfg.Groups.MemberAttribute})
+			e, err := c.GetAttrs(g, []string{cfg.Groups.MemberAttribute})
 			if err != nil {
 				return err
 			}
-			if err := s.setMembers(c, g, append(s.realMembers(e.Values(s.cfg.Groups.MemberAttribute)), dn)); err != nil {
+			if err := s.setMembers(c, g, append(s.realMembers(e.Values(cfg.Groups.MemberAttribute)), dn)); err != nil {
 				return err
 			}
 		}
@@ -362,10 +380,10 @@ func (s *Server) setSuspended(suspend bool) handler {
 		}
 		newDN := dn
 		if !s.withSvc(w, func(c *ldapclient.Client) error {
-			if s.cfg.Users.SuspendedBaseDN != "" {
-				target := s.cfg.Users.SuspendedBaseDN
+			if s.c().Users.SuspendedBaseDN != "" {
+				target := s.c().Users.SuspendedBaseDN
 				if !suspend {
-					target = s.cfg.Users.BaseDN
+					target = s.c().Users.BaseDN
 				}
 				if s.isSuspendedDN(dn) == suspend {
 					return nil // already in the requested state

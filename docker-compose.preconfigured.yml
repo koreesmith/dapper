@@ -1,0 +1,15 @@
+# For automated tests (CI): the demo directory plus Dapper already configured through
+# environment variables, so no wizard is needed. Use together with the demo file:
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml -f docker-compose.preconfigured.yml up -d --build
+services:
+  dapper:
+    environment:
+      DAPPER_LDAP_URL: ldap://openldap:389
+      DAPPER_LDAP_BIND_DN: cn=admin,dc=example,dc=org
+      DAPPER_LDAP_BIND_PASSWORD: admin
+      DAPPER_USERS_BASE_DN: ou=people,dc=example,dc=org
+      DAPPER_ADMIN_GROUP_DN: cn=dapper-admins,ou=groups,dc=example,dc=org
+      DAPPER_GROUPS_BASE_DN: ou=groups,dc=example,dc=org
+      DAPPER_USERS_SUSPENDED_BASE_DN: ou=suspended,dc=example,dc=org
+    depends_on:
+      - openldap

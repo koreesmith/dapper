@@ -4,3 +4,4 @@ backend/bin/
 *.log
 dapper.yaml
 .env
+data/

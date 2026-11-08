@@ -17,38 +17,34 @@ manage users **without knowing LDAP**. The first release targets **OpenLDAP**.
 Light, Dark and Sepia themes. Everything is built to work with your existing server: nothing
 is installed into the directory and Dapper keeps no user database of its own.
 
-## Try it in two minutes
+## Getting started
 
-Needs Docker.
+Needs Docker. This starts **only Dapper**; it never starts or installs an LDAP server for you.
 
 ```sh
 git clone https://github.com/koreesmith/dapper && cd dapper
 docker compose up -d --build
+docker compose logs dapper        # shows the setup code
 ```
 
-Open <http://localhost:8080> and sign in as **alice** / `alicepass` (administrator) or
-**bob** / `bobpass` (regular user). This starts Dapper plus a throwaway demo OpenLDAP server
-with sample people. The demo server is for trying things out only.
+Open <http://localhost:8080>. A setup wizard asks for the setup code, then for your LDAP server's address and a
+service account, and finishes by testing everything. All of Dapper's settings live in the web interface
+afterwards. See [docs/configuration.md](docs/configuration.md), and
+[docs/service-account.md](docs/service-account.md) for the access the service account needs.
 
-## Using it with your own LDAP server
+Put Dapper behind an HTTPS reverse proxy for real use; it speaks plain HTTP itself.
 
-1. Create a service account and a group for administrators: see [docs/service-account.md](docs/service-account.md).
-2. Copy [`dapper.example.yaml`](dapper.example.yaml) to `dapper.yaml` and fill it in, or use environment
-   variables: see [docs/configuration.md](docs/configuration.md).
-3. Run the image, mounting a volume for settings:
+### Just want to look around?
+
+Add a throwaway demo OpenLDAP server with sample people:
 
 ```sh
-docker build -t dapper .
-docker run -p 8080:8080 -v dapper-data:/data \
-  -e DAPPER_LDAP_URL=ldaps://ldap.example.org \
-  -e DAPPER_LDAP_BIND_DN=cn=dapper-svc,dc=example,dc=org \
-  -e DAPPER_LDAP_BIND_PASSWORD=... \
-  -e DAPPER_USERS_BASE_DN=ou=people,dc=example,dc=org \
-  -e DAPPER_ADMIN_GROUP_DN=cn=dapper-admins,ou=groups,dc=example,dc=org \
-  dapper
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
 ```
 
-Put it behind an HTTPS reverse proxy. Dapper itself speaks plain HTTP.
+In the wizard use server `ldap://openldap:389`, service account `cn=admin,dc=example,dc=org` / `admin`, and the
+existing administrators group `cn=dapper-admins,ou=groups,dc=example,dc=org`. Then sign in as **alice** /
+`alicepass` (administrator) or **bob** / `bobpass` (regular user). The demo server is for trying things out only.
 
 ## Security notes
 
@@ -68,16 +64,18 @@ scripts/   end-to-end tests
 ```
 
 ```sh
-docker compose up -d openldap          # demo OpenLDAP on :389
-cd backend && DAPPER_CONFIG=../dapper.yaml go run ./cmd/dapper    # API on :8080
-cd web && npm install && npm run dev                              # UI on :5173, proxies /api
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d openldap   # demo OpenLDAP on :389
+cd backend && DAPPER_DATA_DIR=../data go run ./cmd/dapper                        # API on :8080 (prints a setup code)
+cd web && npm install && npm run dev                                             # UI on :5173, proxies /api
 ```
 
 Tests:
 
 ```sh
 cd backend && go test ./...            # unit tests
-docker compose up -d --build && ./scripts/e2e.sh   # end-to-end, against the demo directory
+# end-to-end, against the demo directory (fresh stack: runs the real first-run setup, then the main suite)
+DAPPER_SETUP_CODE=test docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+SETUP_CODE=test ./scripts/e2e-setup.sh && ./scripts/e2e.sh
 ```
 
 ## License

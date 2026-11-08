@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/koreesmith/dapper/backend/internal/config"
@@ -18,21 +19,43 @@ import (
 const cookieName = "dapper_session"
 
 type Server struct {
-	cfg      *config.Config
+	store    *config.Store
 	policy   *policy.Policy
 	sessions *session.Store
-	srv      ldapclient.Server
 	limit    *limiter
+
+	setupMu    sync.Mutex
+	setupToken string // required for the setup wizard while Dapper is unconfigured
 }
 
-func New(cfg *config.Config, pol *policy.Policy) *Server {
-	return &Server{
-		cfg:      cfg,
+func New(store *config.Store, pol *policy.Policy) *Server {
+	cfg := store.Get()
+	s := &Server{
+		store:    store,
 		policy:   pol,
 		limit:    newLimiter(),
 		sessions: session.NewStore(cfg.Session.IdleTimeout, cfg.Session.MaxAge),
-		srv:      ldapclient.Server{URL: cfg.LDAP.URL, StartTLS: cfg.LDAP.StartTLS, SkipVerify: cfg.LDAP.SkipVerify},
 	}
+	if !store.Configured() {
+		s.setupToken = newSetupToken()
+	}
+	return s
+}
+
+// c returns the current configuration snapshot.
+func (s *Server) c() *config.Config { return s.store.Get() }
+
+// server returns how to reach the directory, from the current configuration.
+func (s *Server) server() ldapclient.Server {
+	c := s.c()
+	return ldapclient.Server{URL: c.LDAP.URL, StartTLS: c.LDAP.StartTLS, SkipVerify: c.LDAP.SkipVerify}
+}
+
+// SetupToken is the code needed to run the setup wizard, or "" once configured.
+func (s *Server) SetupToken() string {
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+	return s.setupToken
 }
 
 type handler func(http.ResponseWriter, *http.Request, *session.Session)
@@ -43,6 +66,10 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("GET /api/me", s.user(s.me))
 
+	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
+	mux.HandleFunc("POST /api/setup/discover", s.setupGate(s.setupDiscover))
+	mux.HandleFunc("POST /api/setup/check", s.setupGate(s.setupCheck))
+	mux.HandleFunc("POST /api/setup/complete", s.setupGate(s.setupComplete))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
 
 	// Self-service: any signed-in user, limited to their own account and the field policy.
@@ -66,6 +93,8 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/admin/group/members", s.admin(s.changeMember(true)))
 	mux.HandleFunc("DELETE /api/admin/group/members", s.admin(s.changeMember(false)))
 	mux.HandleFunc("GET /api/admin/settings", s.admin(s.getSettings))
+	mux.HandleFunc("POST /api/admin/settings/check", s.admin(s.checkSettings))
+	mux.HandleFunc("PUT /api/admin/settings", s.admin(s.putSettings))
 	mux.HandleFunc("PUT /api/admin/settings/fields", s.admin(s.putFieldPolicy))
 
 	// Admin-only directory access. Enforced here, not just hidden in the UI.
@@ -136,6 +165,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	in.Username = strings.TrimSpace(in.Username)
 
+	if !s.store.Configured() {
+		fail(w, http.StatusServiceUnavailable, "Dapper hasn't been set up yet. An administrator needs to finish setup first.")
+		return
+	}
 	ipKey, userKey := "ip:"+clientIP(r), "user:"+strings.ToLower(in.Username)
 	if s.limit.blocked(ipKey, userKey) {
 		w.Header().Set("Retry-After", "600")
@@ -148,19 +181,19 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Look up the user's DN and admin status with the service account.
-	svc, err := ldapclient.Dial(s.srv)
+	svc, err := ldapclient.Dial(s.server())
 	if err != nil {
 		log.Printf("login: %v", err)
 		fail(w, http.StatusBadGateway, "The directory server is unavailable. Try again shortly.")
 		return
 	}
 	defer svc.Close()
-	if err := svc.Bind(s.cfg.LDAP.BindDN, s.cfg.LDAP.BindPassword); err != nil {
+	if err := svc.Bind(s.c().LDAP.BindDN, s.c().LDAP.BindPassword); err != nil {
 		log.Printf("login: service account bind failed: %v", err)
 		fail(w, http.StatusBadGateway, "Dapper cannot reach the directory (service account problem). Contact your administrator.")
 		return
 	}
-	dn, err := svc.FindUserDN(s.cfg.Users.BaseDN, s.cfg.Users.LoginAttributes, in.Username)
+	dn, err := svc.FindUserDN(s.c().Users.BaseDN, s.c().Users.LoginAttributes, in.Username)
 	if err != nil {
 		if !errors.Is(err, ldapclient.ErrInvalidCredentials) {
 			log.Printf("login: user lookup: %v", err)
@@ -168,7 +201,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		failed()
 		return
 	}
-	isAdmin, err := svc.IsMember(s.cfg.Admin.GroupDN, dn)
+	isAdmin, err := svc.IsMember(s.c().Admin.GroupDN, dn)
 	if err != nil {
 		log.Printf("login: admin group check: %v", err)
 		fail(w, http.StatusBadGateway, "Could not determine your access level. Contact your administrator.")
@@ -177,7 +210,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Verify the password by binding as the user on a fresh connection,
 	// which is then kept for the session so the directory's ACLs apply.
-	conn, err := ldapclient.Dial(s.srv)
+	conn, err := ldapclient.Dial(s.server())
 	if err != nil {
 		fail(w, http.StatusBadGateway, "The directory server is unavailable. Try again shortly.")
 		return
@@ -197,14 +230,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: sess.ID, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure:  s.secureCookie(r),
-		Expires: time.Now().Add(s.cfg.Session.MaxAge),
+		Expires: time.Now().Add(s.c().Session.MaxAge),
 	})
 	s.me(w, r, sess)
 }
 
 func (s *Server) secureCookie(r *http.Request) bool {
-	if s.cfg.Session.SecureCookie != nil {
-		return *s.cfg.Session.SecureCookie
+	if s.c().Session.SecureCookie != nil {
+		return *s.c().Session.SecureCookie
 	}
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
@@ -222,8 +255,8 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 		"dn": sess.DN, "isAdmin": sess.IsAdmin, "name": sess.DN,
 		"features": map[string]any{
 			"groups":            s.groupsEnabled(),
-			"suspendByMove":     s.cfg.Users.SuspendedBaseDN != "",
-			"passwordMinLength": s.cfg.Password.MinLength,
+			"suspendByMove":     s.c().Users.SuspendedBaseDN != "",
+			"passwordMinLength": s.c().Password.MinLength,
 		},
 	}
 	if e, err := sess.Conn.Get(sess.DN); err == nil {
@@ -240,7 +273,7 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 // rootDN is the top of the directory tree shown in the Advanced browser: the
 // users container's domain suffix (from its first dc= component), if any.
 func (s *Server) rootDN() string {
-	base := s.cfg.Users.BaseDN
+	base := s.c().Users.BaseDN
 	for i := 0; i+3 <= len(base); i++ {
 		if (i == 0 || base[i-1] == ',') && strings.EqualFold(base[i:i+3], "dc=") {
 			return base[i:]
@@ -331,5 +364,11 @@ func fail(w http.ResponseWriter, code int, msg string) {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeJSONStatus(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }

@@ -301,3 +301,24 @@ func (e Entry) Values(attr string) []string {
 	}
 	return nil
 }
+
+// Exists reports whether dn exists.
+func (c *Client) Exists(dn string) (bool, error) {
+	_, err := c.GetAttrs(dn, []string{"1.1"})
+	if err != nil {
+		if ldap.IsErrorWithCode(err, ldap.LDAPResultNoSuchObject) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// NamingContexts reads the server's root DSE for the directory suffixes it serves.
+func (c *Client) NamingContexts() ([]string, error) {
+	es, err := c.search("", ldap.ScopeBaseObject, "(objectClass=*)", []string{"namingContexts"}, 1)
+	if err != nil || len(es) == 0 {
+		return nil, err
+	}
+	return es[0].Values("namingContexts"), nil
+}

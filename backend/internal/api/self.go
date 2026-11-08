@@ -94,7 +94,7 @@ func (s *Server) changeOwnPassword(w http.ResponseWriter, r *http.Request, sess 
 		return
 	}
 	// Prove knowledge of the current password with a fresh bind as the user.
-	probe, err := ldapclient.Dial(s.srv)
+	probe, err := ldapclient.Dial(s.server())
 	if err != nil {
 		fail(w, http.StatusBadGateway, "The directory server is unavailable. Try again shortly.")
 		return

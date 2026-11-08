@@ -138,3 +138,26 @@ textarea { font: inherit; }
 
 .panel > button, .panel > a.btn { align-self: flex-start; }
 .pagehead { margin-bottom: 12px; }
+
+.wizard { max-width: 760px; margin: 4vh auto; padding: 0 16px; }
+.wizard h1 { color: var(--primary); }
+.steps { list-style: none; display: flex; gap: 6px; padding: 0; margin: 0 0 8px; flex-wrap: wrap; }
+.steps li { padding: 4px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.steps li.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
+.steps li.done { color: var(--primary); border-color: var(--primary); }
+.setrow { display: grid; grid-template-columns: 220px 1fr; gap: 6px 14px; align-items: start; }
+.setlabel { display: block; padding-top: 6px; color: var(--muted); }
+.setcontrol { display: flex; flex-direction: column; gap: 4px; }
+.setcontrol input:not([type="checkbox"]) { max-width: 460px; width: 100%; }
+.checks { display: flex; flex-direction: column; gap: 4px; }
+.checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.checklist li { display: flex; gap: 8px; align-items: baseline; }
+.checklist .ico { font-weight: 700; width: 18px; text-align: center; }
+.checklist .pass .ico { color: var(--primary); }
+.checklist .bad .ico { color: var(--danger); }
+.checklist .bad { color: var(--danger); }
+.checklist .warn .ico, .checklist .pend .ico { color: #c98a00; }
+.code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin: 0; overflow-x: auto; }
+details.advanced { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+details.advanced summary { cursor: pointer; color: var(--primary); }
+@media (max-width: 720px) { .setrow { grid-template-columns: 1fr; } }

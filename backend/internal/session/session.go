@@ -93,3 +93,10 @@ func (s *Store) janitor() {
 		s.mu.Unlock()
 	}
 }
+
+// SetTimeouts changes the idle and absolute limits for all sessions.
+func (s *Store) SetTimeouts(idle, maxAge time.Duration) {
+	s.mu.Lock()
+	s.idle, s.maxAge = idle, maxAge
+	s.mu.Unlock()
+}

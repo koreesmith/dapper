@@ -21,11 +21,11 @@ import (
 // Directory writes and cross-user reads go through it; Dapper itself decides
 // who is allowed to ask (admin group, field policy) before using it.
 func (s *Server) svc() (*ldapclient.Client, error) {
-	c, err := ldapclient.Dial(s.srv)
+	c, err := ldapclient.Dial(s.server())
 	if err != nil {
 		return nil, err
 	}
-	if err := c.Bind(s.cfg.LDAP.BindDN, s.cfg.LDAP.BindPassword); err != nil {
+	if err := c.Bind(s.c().LDAP.BindDN, s.c().LDAP.BindPassword); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("service account: %w", err)
 	}
@@ -219,8 +219,8 @@ func generatePassword(n int) string {
 }
 
 func (s *Server) checkPassword(pw string) error {
-	if len(pw) < s.cfg.Password.MinLength {
-		return validationError(fmt.Sprintf("Passwords must be at least %d characters long.", s.cfg.Password.MinLength))
+	if len(pw) < s.c().Password.MinLength {
+		return validationError(fmt.Sprintf("Passwords must be at least %d characters long.", s.c().Password.MinLength))
 	}
 	return nil
 }
@@ -240,14 +240,14 @@ func underBase(base, dn string) bool {
 
 // userDN validates a caller-supplied DN refers to an account Dapper manages.
 func (s *Server) userDN(dn string) (string, error) {
-	if underBase(s.cfg.Users.BaseDN, dn) || underBase(s.cfg.Users.SuspendedBaseDN, dn) {
+	if underBase(s.c().Users.BaseDN, dn) || underBase(s.c().Users.SuspendedBaseDN, dn) {
 		return dn, nil
 	}
 	return "", validationError("That account isn't managed by Dapper.")
 }
 
 func (s *Server) isSuspendedDN(dn string) bool {
-	return underBase(s.cfg.Users.SuspendedBaseDN, dn)
+	return underBase(s.c().Users.SuspendedBaseDN, dn)
 }
 
 // ldapEscape escapes a value for use inside an LDAP search filter.

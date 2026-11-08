@@ -12,13 +12,14 @@ import (
 )
 
 func main() {
-	path := flag.String("config", envOr("DAPPER_CONFIG", "dapper.yaml"), "path to config file")
+	path := flag.String("config", envOr("DAPPER_CONFIG", "dapper.yaml"), "optional YAML file (everything can be set in the web UI instead)")
 	flag.Parse()
 
-	cfg, err := config.Load(*path)
+	store, err := config.Open(*path)
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	cfg := store.Get()
 
 	pol, err := policy.Load(cfg.DataDir)
 	if err != nil {
@@ -32,8 +33,16 @@ func main() {
 		}
 		static = http.FileServer(http.Dir(cfg.Static))
 	}
+
+	srv := api.New(store, pol)
+	if tok := srv.SetupToken(); tok != "" {
+		log.Printf("=====================================================================")
+		log.Printf("Dapper is not set up yet. Open it in your browser to run the setup")
+		log.Printf("wizard, and enter this setup code when asked:  %s", tok)
+		log.Printf("=====================================================================")
+	}
 	log.Printf("dapper listening on %s", cfg.Listen)
-	log.Fatal(http.ListenAndServe(cfg.Listen, api.New(cfg, pol).Handler(static)))
+	log.Fatal(http.ListenAndServe(cfg.Listen, srv.Handler(static)))
 }
 
 func envOr(k, d string) string {

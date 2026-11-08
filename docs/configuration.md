@@ -1,50 +1,70 @@
 # Configuration
 
-Dapper reads a YAML file (`dapper.yaml` by default, or the path in `DAPPER_CONFIG`)
-and then applies environment variables on top. See [`dapper.example.yaml`](../dapper.example.yaml)
-for every option with comments.
+**Dapper is configured in its web interface.** There's no file to edit.
 
-## Required
+## First run
 
-| Setting | Environment variable | Meaning |
-|---|---|---|
-| `ldap.url` | `DAPPER_LDAP_URL` | `ldap://host:389` or `ldaps://host:636` |
-| `ldap.bindDN` | `DAPPER_LDAP_BIND_DN` | The service account (see [service-account.md](service-account.md)) |
-| `ldap.bindPassword` | `DAPPER_LDAP_BIND_PASSWORD` | Its password. Prefer the environment over the file. |
-| `users.baseDN` | `DAPPER_USERS_BASE_DN` | Where people live |
-| `admin.groupDN` | `DAPPER_ADMIN_GROUP_DN` | Members of this group get the admin screens |
+Start Dapper (for example `docker compose up -d --build`) and open it in a browser. Because nothing is
+configured yet, you'll see a setup wizard. To prove you're the person who started it, the wizard asks for
+a **setup code**, which Dapper prints in its log when it starts:
 
-## Optional
+```sh
+docker compose logs dapper
+```
 
-| Setting | Environment variable | Default |
-|---|---|---|
-| `listen` | `DAPPER_LISTEN` | `:8080` |
-| `dataDir` | `DAPPER_DATA_DIR` | `data` (the Docker image uses `/data`) |
-| `ldap.startTLS` | `DAPPER_LDAP_STARTTLS` | `false` |
-| `ldap.skipVerify` | `DAPPER_LDAP_SKIP_VERIFY` | `false`. Turns off certificate checks; only for testing. |
-| `users.loginAttributes` | `DAPPER_USERS_LOGIN_ATTRIBUTES` (comma-separated) | `uid,mail` |
-| `users.objectClasses` | | `inetOrgPerson` |
-| `users.rdnAttribute` | | `uid` |
-| `users.suspendedBaseDN` | `DAPPER_USERS_SUSPENDED_BASE_DN` | empty: lock in place with ppolicy |
-| `groups.baseDN` | `DAPPER_GROUPS_BASE_DN` | empty: group management is off |
-| `groups.objectClass` / `groups.memberAttribute` | | `groupOfNames` / `member` |
-| `password.minLength` | | `8` |
-| `session.idleTimeout` / `session.maxAge` | | `30m` / `8h` |
-| `session.secureCookie` | | automatic (on when served over HTTPS) |
+The wizard then walks through:
 
-## Settings changed in the web UI
+1. **Your directory:** the server address, whether to use StartTLS, and the service account
+   ([what access it needs](service-account.md)). Dapper tests the connection straight away.
+2. **Where things live:** the containers for people, groups and suspended people. Dapper suggests names
+   based on your directory, and can create any that don't exist yet.
+3. **Administrators:** pick an existing administrators group, make an existing person an administrator,
+   or create a brand-new administrator account (handy for an empty directory).
+4. **Review:** everything is tested against your directory before anything is saved.
 
-The **Settings** page lets administrators choose which details people can see and
-change about themselves. Those choices are stored in `<dataDir>/policy.yaml`, so
-mount `dataDir` on a volume if you run Dapper in a container.
+## Changing settings later
+
+Administrators can change everything on the **Settings** page: the connection, where people and groups live,
+the administrators group, password rules and sign-out times, and which details people can see and change
+about themselves. Settings are **tested before they're saved**, and a change that would lock you out of the
+admin screens is refused. Changes take effect immediately, with no restart.
+
+## Where settings are stored
+
+In the data directory (`/data` in the Docker image): `settings.yaml` for connection and layout settings, and
+`policy.yaml` for what people can change about themselves. **Keep this directory on a volume.** The
+`settings.yaml` file contains the service account's password, so it is created readable by its owner only;
+protect backups of it accordingly.
+
+## Optional: configuring with environment variables
+
+For automated deployments you can also set values with environment variables. A setting provided this way is
+**locked**: the Settings page shows it read-only, and it can't be changed from the web interface.
+
+| Environment variable | Setting |
+|---|---|
+| `DAPPER_LDAP_URL` | Server address (`ldap://host:389` or `ldaps://host:636`) |
+| `DAPPER_LDAP_STARTTLS`, `DAPPER_LDAP_SKIP_VERIFY` | Encryption options |
+| `DAPPER_LDAP_BIND_DN`, `DAPPER_LDAP_BIND_PASSWORD` | Service account |
+| `DAPPER_USERS_BASE_DN` | Where people are |
+| `DAPPER_USERS_SUSPENDED_BASE_DN` | Where suspended people go |
+| `DAPPER_USERS_LOGIN_ATTRIBUTES` | Comma-separated, e.g. `uid,mail` |
+| `DAPPER_GROUPS_BASE_DN` | Where groups are |
+| `DAPPER_ADMIN_GROUP_DN` | The administrators group |
+
+When all of the required ones (server, service account and password, people container, administrators group)
+are set, the setup wizard is skipped. See `docker-compose.preconfigured.yml` for an example.
+
+Process-level options always come from the environment: `DAPPER_LISTEN` (default `:8080`),
+`DAPPER_DATA_DIR` (default `data`), `DAPPER_SETUP_CODE` (fix the setup code instead of a random one),
+and `DAPPER_CONFIG` (path to an optional YAML file with the same structure as `settings.yaml`).
 
 ## Suspending accounts
 
-- **With `users.suspendedBaseDN` set** (recommended; works on any server), suspending moves the
-  account into that container and restoring moves it back. Group memberships are updated to follow.
-  Create the container once (for example `ou=suspended`).
-- **Without it**, Dapper locks the account in place by setting `pwdAccountLockedTime`, which needs
-  OpenLDAP's `ppolicy` overlay.
+- **With a "suspended people" container set** (recommended; works on any server), suspending moves the
+  account there and restoring moves it back. Group memberships follow.
+- **Without one**, Dapper locks the account in place using `pwdAccountLockedTime`, which needs OpenLDAP's
+  `ppolicy` overlay.
 
 ## Running behind HTTPS
 
