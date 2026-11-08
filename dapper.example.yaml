@@ -1,0 +1,22 @@
+# Copy to dapper.yaml (or set DAPPER_CONFIG). Any setting can also come from
+# an environment variable, e.g. DAPPER_LDAP_BIND_PASSWORD; prefer that for secrets.
+listen: ":8080"
+static: ""            # directory of the built web UI (the Docker image sets this)
+
+ldap:
+  url: ldap://ldap.example.org:389
+  startTLS: true
+  skipVerify: false
+  bindDN: cn=dapper-svc,dc=example,dc=org   # read-only account, used only to look users up
+  bindPassword: ""                          # DAPPER_LDAP_BIND_PASSWORD
+
+users:
+  baseDN: ou=people,dc=example,dc=org
+  loginAttributes: [uid, mail]              # what people may type as their username
+
+admin:
+  groupDN: cn=dapper-admins,ou=groups,dc=example,dc=org   # members get the admin console
+
+session:
+  idleTimeout: 30m
+  maxAge: 8h

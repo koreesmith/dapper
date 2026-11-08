@@ -7,20 +7,32 @@ import (
 	"os"
 
 	"github.com/koreesmith/dapper/backend/internal/api"
+	"github.com/koreesmith/dapper/backend/internal/config"
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address")
-	static := flag.String("static", "", "directory of built web UI to serve (optional)")
+	path := flag.String("config", envOr("DAPPER_CONFIG", "dapper.yaml"), "path to config file")
 	flag.Parse()
 
-	var fs http.Handler
-	if *static != "" {
-		if _, err := os.Stat(*static); err != nil {
+	cfg, err := config.Load(*path)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	var static http.Handler
+	if cfg.Static != "" {
+		if _, err := os.Stat(cfg.Static); err != nil {
 			log.Fatalf("static dir: %v", err)
 		}
-		fs = http.FileServer(http.Dir(*static))
+		static = http.FileServer(http.Dir(cfg.Static))
 	}
-	log.Printf("dapper listening on %s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, api.New().Handler(fs)))
+	log.Printf("dapper listening on %s", cfg.Listen)
+	log.Fatal(http.ListenAndServe(cfg.Listen, api.New(cfg).Handler(static)))
+}
+
+func envOr(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
 }

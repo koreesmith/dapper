@@ -1,0 +1,35 @@
+# Dev-only sample directory for the bundled test OpenLDAP.
+dn: ou=people,dc=example,dc=org
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=alice,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Admin
+sn: Admin
+givenName: Alice
+displayName: Alice Admin
+mail: alice@example.org
+telephoneNumber: +1 555 0100
+userPassword: alicepass
+
+dn: uid=bob,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: bob
+cn: Bob Builder
+sn: Builder
+givenName: Bob
+displayName: Bob Builder
+mail: bob@example.org
+telephoneNumber: +1 555 0101
+userPassword: bobpass
+
+dn: cn=dapper-admins,ou=groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: dapper-admins
+member: uid=alice,ou=people,dc=example,dc=org

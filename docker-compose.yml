@@ -3,6 +3,16 @@ services:
     build: .
     ports:
       - "8080:8080"
+    environment:
+      # Dev wiring to the bundled test server below. For a real server, use your
+      # own values (see dapper.example.yaml).
+      DAPPER_LDAP_URL: ldap://openldap:389
+      DAPPER_LDAP_BIND_DN: cn=admin,dc=example,dc=org
+      DAPPER_LDAP_BIND_PASSWORD: admin
+      DAPPER_USERS_BASE_DN: ou=people,dc=example,dc=org
+      DAPPER_ADMIN_GROUP_DN: cn=dapper-admins,ou=groups,dc=example,dc=org
+    depends_on:
+      - openldap
 
   # Development only: a throwaway OpenLDAP server to test against.
   # Dapper reaches it at ldap://openldap:389. Remove if you use your own server.
@@ -12,6 +22,9 @@ services:
       LDAP_ORGANISATION: Example
       LDAP_DOMAIN: example.org
       LDAP_ADMIN_PASSWORD: admin
+    command: --copy-service
+    volumes:
+      - ./deploy/dev-seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif:ro
     ports:
       - "389:389"
       - "636:636"

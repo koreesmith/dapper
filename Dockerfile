@@ -14,4 +14,5 @@ FROM alpine:3.20
 COPY --from=backend /dapper /usr/local/bin/dapper
 COPY --from=web /web/dist /srv/web
 EXPOSE 8080
-ENTRYPOINT ["dapper", "-static", "/srv/web"]
+ENV DAPPER_STATIC=/srv/web
+ENTRYPOINT ["dapper"]

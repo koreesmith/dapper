@@ -2,4 +2,5 @@ node_modules/
 web/dist/
 backend/bin/
 *.log
+dapper.yaml
 .env

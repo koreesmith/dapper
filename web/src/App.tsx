@@ -1,42 +1,68 @@
 import { useEffect, useState } from "react";
-import { api, ConnectConfig, Entry } from "./api";
+import { api, Entry, Me } from "./api";
 
 export function App() {
-  const [baseDN, setBaseDN] = useState<string | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    api.session().then((s) => setBaseDN(s.baseDN)).catch(() => {}).finally(() => setChecked(true));
+    api.me().then(setMe).catch(() => {}).finally(() => setChecked(true));
   }, []);
 
   if (!checked) return null;
-  if (!baseDN) return <ConnectForm onConnected={setBaseDN} />;
-  return <Browser baseDN={baseDN} onDisconnect={() => api.disconnect().then(() => setBaseDN(null))} />;
+  if (!me) return <Login onSignedIn={setMe} />;
+  return <Shell me={me} onSignOut={() => api.logout().then(() => setMe(null))} />;
 }
 
-function ConnectForm({ onConnected }: { onConnected: (b: string) => void }) {
-  const [cfg, setCfg] = useState<ConnectConfig>({
-    url: "ldap://localhost:389", bindDN: "cn=admin,dc=example,dc=org", password: "",
-    baseDN: "dc=example,dc=org", startTLS: false, skipVerify: false,
-  });
+function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
-  const set = (k: keyof ConnectConfig, v: string | boolean) => setCfg({ ...cfg, [k]: v });
+  const [busy, setBusy] = useState(false);
 
   return (
     <form className="card" onSubmit={async (e) => {
       e.preventDefault();
-      try { onConnected((await api.connect(cfg)).baseDN); } catch (x) { setErr(String(x)); }
+      setBusy(true); setErr("");
+      try { onSignedIn(await api.login(username, password)); }
+      catch (x) { setErr((x as Error).message); }
+      finally { setBusy(false); }
     }}>
       <h1>Dapper</h1>
-      <label>Server URL<input value={cfg.url} onChange={(e) => set("url", e.target.value)} /></label>
-      <label>Bind DN<input value={cfg.bindDN} onChange={(e) => set("bindDN", e.target.value)} /></label>
-      <label>Password<input type="password" value={cfg.password} onChange={(e) => set("password", e.target.value)} /></label>
-      <label>Base DN<input value={cfg.baseDN} onChange={(e) => set("baseDN", e.target.value)} /></label>
-      <label className="inline"><input type="checkbox" checked={cfg.startTLS} onChange={(e) => set("startTLS", e.target.checked)} /> StartTLS</label>
-      <label className="inline"><input type="checkbox" checked={cfg.skipVerify} onChange={(e) => set("skipVerify", e.target.checked)} /> Skip certificate verification</label>
-      {err && <p className="error">{err}</p>}
-      <button>Connect</button>
+      <label>Username or email
+        <input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+      </label>
+      <label>Password
+        <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      </label>
+      {err && <p className="error" role="alert">{err}</p>}
+      <button disabled={busy || !username || !password}>{busy ? "Signing in…" : "Sign in"}</button>
     </form>
+  );
+}
+
+function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
+  const [tab, setTab] = useState<"me" | "directory">("me");
+  return (
+    <div className="shell">
+      <header>
+        <strong>Dapper</strong>
+        <nav>
+          <button className={tab === "me" ? "tab on" : "tab"} onClick={() => setTab("me")}>My account</button>
+          {me.isAdmin && (
+            <button className={tab === "directory" ? "tab on" : "tab"} onClick={() => setTab("directory")}>Directory</button>
+          )}
+        </nav>
+        <span className="spacer" />
+        <span>{me.name}{me.isAdmin ? " (admin)" : ""}</span>
+        <button onClick={onSignOut}>Sign out</button>
+      </header>
+      {tab === "me" || !me.isAdmin ? (
+        <main className="page"><h2>Welcome, {me.name}</h2><p>Profile and password management are coming next.</p></main>
+      ) : (
+        <Browser />
+      )}
+    </div>
   );
 }
 
@@ -58,29 +84,30 @@ function TreeNode({ entry, onSelect, selected }: { entry: Entry; onSelect: (dn: 
   );
 }
 
-function Browser({ baseDN, onDisconnect }: { baseDN: string; onDisconnect: () => void }) {
+function Browser() {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [results, setResults] = useState<Entry[] | null>(null);
+  const [root, setRoot] = useState<Entry[] | null>(null);
   const [err, setErr] = useState("");
+
+  useEffect(() => { api.children().then(setRoot).catch((x) => setErr(String(x))); }, []);
 
   return (
     <div className="layout">
-      <header>
-        <strong>Dapper</strong>
+      <div className="toolbar">
         <form onSubmit={async (e) => {
           e.preventDefault();
-          try { setResults(filter ? await api.search(baseDN, filter) : null); setErr(""); } catch (x) { setErr(String(x)); }
+          try { setResults(filter ? await api.search("", filter) : null); setErr(""); } catch (x) { setErr(String(x)); }
         }}>
           <input placeholder="LDAP filter, e.g. (uid=jdoe)" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </form>
-        <button onClick={onDisconnect}>Disconnect</button>
-      </header>
+      </div>
       <aside>
         {results ? (
           <ul>{results.map((r) => <li key={r.dn}><span className="node" onClick={() => setSelected(r.dn)}>{r.dn}</span></li>)}</ul>
         ) : (
-          <ul><TreeNode entry={{ dn: baseDN, attrs: {} }} onSelect={setSelected} selected={selected} /></ul>
+          <ul>{root?.map((r) => <TreeNode key={r.dn} entry={r} onSelect={setSelected} selected={selected} />)}</ul>
         )}
         {err && <p className="error">{err}</p>}
       </aside>
