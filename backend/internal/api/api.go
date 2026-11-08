@@ -6,26 +6,30 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/koreesmith/dapper/backend/internal/config"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
+	"github.com/koreesmith/dapper/backend/internal/policy"
 	"github.com/koreesmith/dapper/backend/internal/session"
-	"github.com/koreesmith/dapper/backend/internal/users"
 )
 
 const cookieName = "dapper_session"
 
 type Server struct {
 	cfg      *config.Config
+	policy   *policy.Policy
 	sessions *session.Store
 	srv      ldapclient.Server
+	limit    *limiter
 }
 
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, pol *policy.Policy) *Server {
 	return &Server{
 		cfg:      cfg,
+		policy:   pol,
+		limit:    newLimiter(),
 		sessions: session.NewStore(cfg.Session.IdleTimeout, cfg.Session.MaxAge),
 		srv:      ldapclient.Server{URL: cfg.LDAP.URL, StartTLS: cfg.LDAP.StartTLS, SkipVerify: cfg.LDAP.SkipVerify},
 	}
@@ -39,7 +43,30 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("GET /api/me", s.user(s.me))
 
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
+
+	// Self-service: any signed-in user, limited to their own account and the field policy.
+	mux.HandleFunc("GET /api/me/profile", s.user(s.getProfile))
+	mux.HandleFunc("PATCH /api/me/profile", s.user(s.updateProfile))
+	mux.HandleFunc("POST /api/me/password", s.user(s.changeOwnPassword))
+
+	// Administration of people, groups and settings.
 	mux.HandleFunc("GET /api/admin/users", s.admin(s.listUsers))
+	mux.HandleFunc("POST /api/admin/users", s.admin(s.createUser))
+	mux.HandleFunc("GET /api/admin/user", s.admin(s.getUser))
+	mux.HandleFunc("PATCH /api/admin/user", s.admin(s.updateUser))
+	mux.HandleFunc("DELETE /api/admin/user", s.admin(s.deleteUser))
+	mux.HandleFunc("POST /api/admin/user/suspend", s.admin(s.setSuspended(true)))
+	mux.HandleFunc("POST /api/admin/user/restore", s.admin(s.setSuspended(false)))
+	mux.HandleFunc("POST /api/admin/user/password", s.admin(s.resetPassword))
+	mux.HandleFunc("GET /api/admin/groups", s.admin(s.listGroups))
+	mux.HandleFunc("POST /api/admin/groups", s.admin(s.createGroup))
+	mux.HandleFunc("GET /api/admin/group", s.admin(s.getGroup))
+	mux.HandleFunc("DELETE /api/admin/group", s.admin(s.deleteGroup))
+	mux.HandleFunc("POST /api/admin/group/members", s.admin(s.changeMember(true)))
+	mux.HandleFunc("DELETE /api/admin/group/members", s.admin(s.changeMember(false)))
+	mux.HandleFunc("GET /api/admin/settings", s.admin(s.getSettings))
+	mux.HandleFunc("PUT /api/admin/settings/fields", s.admin(s.putFieldPolicy))
 
 	// Admin-only directory access. Enforced here, not just hidden in the UI.
 	mux.HandleFunc("GET /api/admin/children", s.admin(s.children))
@@ -107,6 +134,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusUnauthorized, loginFailed)
 		return
 	}
+	in.Username = strings.TrimSpace(in.Username)
+
+	ipKey, userKey := "ip:"+clientIP(r), "user:"+strings.ToLower(in.Username)
+	if s.limit.blocked(ipKey, userKey) {
+		w.Header().Set("Retry-After", "600")
+		fail(w, http.StatusTooManyRequests, "Too many failed sign-in attempts. Wait a few minutes and try again.")
+		return
+	}
+	failed := func() {
+		s.limit.fail(ipKey, userKey)
+		fail(w, http.StatusUnauthorized, loginFailed)
+	}
 
 	// 1. Look up the user's DN and admin status with the service account.
 	svc, err := ldapclient.Dial(s.srv)
@@ -126,7 +165,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, ldapclient.ErrInvalidCredentials) {
 			log.Printf("login: user lookup: %v", err)
 		}
-		fail(w, http.StatusUnauthorized, loginFailed)
+		failed()
 		return
 	}
 	isAdmin, err := svc.IsMember(s.cfg.Admin.GroupDN, dn)
@@ -148,11 +187,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, ldapclient.ErrInvalidCredentials) {
 			log.Printf("login: user bind: %v", err)
 		}
-		fail(w, http.StatusUnauthorized, loginFailed)
+		failed()
 		return
 	}
 
+	s.limit.reset(ipKey, userKey)
 	sess := s.sessions.Create(dn, isAdmin, conn)
+	audit(sess, "login", dn)
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: sess.ID, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode,
 		Secure:  s.secureCookie(r),
@@ -177,7 +218,14 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Session) {
-	out := map[string]any{"dn": sess.DN, "isAdmin": sess.IsAdmin, "name": sess.DN}
+	out := map[string]any{
+		"dn": sess.DN, "isAdmin": sess.IsAdmin, "name": sess.DN,
+		"features": map[string]any{
+			"groups":            s.groupsEnabled(),
+			"suspendByMove":     s.cfg.Users.SuspendedBaseDN != "",
+			"passwordMinLength": s.cfg.Password.MinLength,
+		},
+	}
 	if e, err := sess.Conn.Get(sess.DN); err == nil {
 		for _, a := range []string{"displayName", "cn", "uid"} {
 			if v := e.Attrs[a]; len(v) > 0 {
@@ -252,43 +300,4 @@ func fail(w http.ResponseWriter, code int, msg string) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-// maxUsers bounds how many accounts one search loads into memory.
-const maxUsers = 5000
-
-// listUsers is the friendly people list: plain-language search, sorting and
-// paging with no LDAP knowledge required. It reads through the service
-// account, since the directory's own ACLs usually hide other people from the
-// admin's personal bind; admin status was already checked by the caller.
-func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ *session.Session) {
-	svc, err := ldapclient.Dial(s.srv)
-	if err == nil {
-		defer svc.Close()
-		err = svc.Bind(s.cfg.LDAP.BindDN, s.cfg.LDAP.BindPassword)
-	}
-	if err != nil {
-		log.Printf("list users: service account: %v", err)
-		fail(w, http.StatusBadGateway, "Dapper cannot reach the directory. Contact your administrator.")
-		return
-	}
-	entries, truncated, err := svc.ListPeople(s.cfg.Users.BaseDN, users.Attrs, maxUsers)
-	if err != nil {
-		log.Printf("list users: %v", err)
-		fail(w, http.StatusBadGateway, "Could not read the user list from the directory.")
-		return
-	}
-	all := make([]users.User, len(entries))
-	for i, e := range entries {
-		all[i] = users.FromEntry(e)
-	}
-	q := r.URL.Query()
-	page, _ := strconv.Atoi(q.Get("page"))
-	size, _ := strconv.Atoi(q.Get("pageSize"))
-	res := users.List(all, users.Query{
-		Search: q.Get("q"), Sort: q.Get("sort"), Desc: q.Get("dir") == "desc", Page: page, PageSize: size,
-	})
-	writeJSON(w, map[string]any{
-		"users": res.Users, "total": res.Total, "page": res.Page, "pageSize": res.PageSize, "truncated": truncated,
-	})
 }

@@ -11,8 +11,11 @@ COPY backend/ .
 RUN CGO_ENABLED=0 go build -o /dapper ./cmd/dapper
 
 FROM alpine:3.20
+RUN adduser -D -u 10001 dapper && mkdir /data && chown dapper /data
 COPY --from=backend /dapper /usr/local/bin/dapper
 COPY --from=web /web/dist /srv/web
 EXPOSE 8080
-ENV DAPPER_STATIC=/srv/web
+ENV DAPPER_STATIC=/srv/web DAPPER_DATA_DIR=/data
+VOLUME /data
+USER dapper
 ENTRYPOINT ["dapper"]

@@ -122,6 +122,7 @@ func (u User) matchTerm(term string) bool {
 // Query describes a list request.
 type Query struct {
 	Search   string
+	Status   string // "", "active" or "suspended"
 	Sort     string // name (default), username, email
 	Desc     bool
 	Page     int // 1-based
@@ -148,6 +149,9 @@ func List(all []User, q Query) Page {
 	}
 	matched := make([]User, 0, len(all))
 	for _, u := range all {
+		if q.Status == "active" && u.Suspended || q.Status == "suspended" && !u.Suspended {
+			continue
+		}
 		if q.Search == "" || u.Matches(q.Search) {
 			matched = append(matched, u)
 		}

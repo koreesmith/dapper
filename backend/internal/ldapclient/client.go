@@ -198,3 +198,106 @@ func (c *Client) ListPeople(base string, attrs []string, limit int) (entries []E
 	}
 	return es, false, nil
 }
+
+// GetAttrs returns one entry with the requested attributes (use "*" and
+// operational names such as pwdAccountLockedTime explicitly).
+func (c *Client) GetAttrs(dn string, attrs []string) (*Entry, error) {
+	es, err := c.search(dn, ldap.ScopeBaseObject, "(objectClass=*)", attrs, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(es) == 0 {
+		return nil, ldap.NewError(ldap.LDAPResultNoSuchObject, errors.New("not found"))
+	}
+	return &es[0], nil
+}
+
+// SearchAttrs runs a subtree search with an explicit filter and attribute list.
+func (c *Client) SearchAttrs(base, filter string, attrs []string, limit int) ([]Entry, error) {
+	return c.search(base, ldap.ScopeWholeSubtree, filter, attrs, limit)
+}
+
+// SetPassword sets a user's password with the Password Modify extended
+// operation, so the server applies its own hashing and password policy.
+func (c *Client) SetPassword(dn, newPassword string) error {
+	_, err := c.conn.PasswordModify(&ldap.PasswordModifyRequest{UserIdentity: dn, NewPassword: newPassword})
+	return err
+}
+
+// Move renames dn to newRDN under newParent (empty keeps the current parent).
+func (c *Client) Move(dn, newRDN, newParent string) error {
+	return c.conn.ModifyDN(ldap.NewModifyDNRequest(dn, newRDN, true, newParent))
+}
+
+// Group is a group entry with its member DNs.
+type Group struct {
+	DN      string   `json:"dn"`
+	Name    string   `json:"name"`
+	Members []string `json:"members"`
+}
+
+// Groups lists groups under base. memberAttr is e.g. "member".
+func (c *Client) Groups(base, objectClass, memberAttr string) ([]Group, error) {
+	es, err := c.search(base, ldap.ScopeWholeSubtree,
+		fmt.Sprintf("(objectClass=%s)", ldap.EscapeFilter(objectClass)), []string{"cn", memberAttr}, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Group, 0, len(es))
+	for _, e := range es {
+		g := Group{DN: e.DN}
+		if v := e.Attrs["cn"]; len(v) > 0 {
+			g.Name = v[0]
+		}
+		g.Members = e.Attrs[memberAttr]
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+// GroupsOfMember returns the groups under base that list memberDN.
+func (c *Client) GroupsOfMember(base, objectClass, memberAttr, memberDN string) ([]Group, error) {
+	es, err := c.search(base, ldap.ScopeWholeSubtree,
+		fmt.Sprintf("(&(objectClass=%s)(%s=%s))", ldap.EscapeFilter(objectClass), memberAttr, ldap.EscapeFilter(memberDN)),
+		[]string{"cn"}, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Group, 0, len(es))
+	for _, e := range es {
+		g := Group{DN: e.DN}
+		if v := e.Attrs["cn"]; len(v) > 0 {
+			g.Name = v[0]
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+// IsCode reports whether err carries the given LDAP result code.
+func IsCode(err error, code uint16) bool { return ldap.IsErrorWithCode(err, code) }
+
+// Result codes used by callers.
+const (
+	CodeNoSuchObject          = ldap.LDAPResultNoSuchObject
+	CodeAlreadyExists         = ldap.LDAPResultEntryAlreadyExists
+	CodeInsufficientAccess    = ldap.LDAPResultInsufficientAccessRights
+	CodeConstraintViolation   = ldap.LDAPResultConstraintViolation
+	CodeInvalidSyntax         = ldap.LDAPResultInvalidAttributeSyntax
+	CodeObjectClassViolation  = ldap.LDAPResultObjectClassViolation
+	CodeNotAllowedOnNonLeaf   = ldap.LDAPResultNotAllowedOnNonLeaf
+	CodeUndefinedAttribute    = ldap.LDAPResultUndefinedAttributeType
+	CodeNoSuchAttribute       = ldap.LDAPResultNoSuchAttribute
+	CodeAttributeOrValueExist = ldap.LDAPResultAttributeOrValueExists
+	CodeUnwillingToPerform    = ldap.LDAPResultUnwillingToPerform
+)
+
+// Values returns the values of attr (case-insensitive), or nil.
+func (e Entry) Values(attr string) []string {
+	for k, v := range e.Attrs {
+		if strings.EqualFold(k, attr) {
+			return v
+		}
+	}
+	return nil
+}

@@ -11,6 +11,11 @@ services:
       DAPPER_LDAP_BIND_PASSWORD: admin
       DAPPER_USERS_BASE_DN: ou=people,dc=example,dc=org
       DAPPER_ADMIN_GROUP_DN: cn=dapper-admins,ou=groups,dc=example,dc=org
+      DAPPER_GROUPS_BASE_DN: ou=groups,dc=example,dc=org
+      DAPPER_USERS_SUSPENDED_BASE_DN: ou=suspended,dc=example,dc=org
+      DAPPER_DATA_DIR: /data
+    volumes:
+      - dapper-data:/data
     depends_on:
       - openldap
 
@@ -28,3 +33,6 @@ services:
     ports:
       - "389:389"
       - "636:636"
+
+volumes:
+  dapper-data:

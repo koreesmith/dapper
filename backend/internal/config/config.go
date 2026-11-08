@@ -15,11 +15,15 @@ import (
 type Config struct {
 	Listen string `yaml:"listen"`
 	Static string `yaml:"static"`
+	// DataDir holds settings the admin UI can change (e.g. field policy). Mount it as a volume.
+	DataDir string `yaml:"dataDir"`
 
-	LDAP    LDAP    `yaml:"ldap"`
-	Users   Users   `yaml:"users"`
-	Admin   Admin   `yaml:"admin"`
-	Session Session `yaml:"session"`
+	LDAP     LDAP     `yaml:"ldap"`
+	Users    Users    `yaml:"users"`
+	Groups   Groups   `yaml:"groups"`
+	Admin    Admin    `yaml:"admin"`
+	Password Password `yaml:"password"`
+	Session  Session  `yaml:"session"`
 }
 
 type LDAP struct {
@@ -33,6 +37,22 @@ type LDAP struct {
 type Users struct {
 	BaseDN          string   `yaml:"baseDN"`
 	LoginAttributes []string `yaml:"loginAttributes"` // what a user may type to sign in
+	ObjectClasses   []string `yaml:"objectClasses"`   // applied to new accounts
+	RDNAttribute    string   `yaml:"rdnAttribute"`    // naming attribute for new accounts (default uid)
+	// SuspendedBaseDN, if set, makes "suspend" move the account into this container
+	// (works on any server). If empty, suspend locks the account with the ppolicy
+	// overlay's pwdAccountLockedTime attribute.
+	SuspendedBaseDN string `yaml:"suspendedBaseDN"`
+}
+
+type Groups struct {
+	BaseDN          string `yaml:"baseDN"`          // empty disables group management
+	ObjectClass     string `yaml:"objectClass"`     // default groupOfNames
+	MemberAttribute string `yaml:"memberAttribute"` // default member
+}
+
+type Password struct {
+	MinLength int `yaml:"minLength"` // enforced by Dapper in addition to server policy
 }
 
 type Admin struct {
@@ -77,6 +97,9 @@ func (c *Config) env() {
 	}
 	str(&c.Listen, "DAPPER_LISTEN")
 	str(&c.Static, "DAPPER_STATIC")
+	str(&c.DataDir, "DAPPER_DATA_DIR")
+	str(&c.Groups.BaseDN, "DAPPER_GROUPS_BASE_DN")
+	str(&c.Users.SuspendedBaseDN, "DAPPER_USERS_SUSPENDED_BASE_DN")
 	str(&c.LDAP.URL, "DAPPER_LDAP_URL")
 	boolean(&c.LDAP.StartTLS, "DAPPER_LDAP_STARTTLS")
 	boolean(&c.LDAP.SkipVerify, "DAPPER_LDAP_SKIP_VERIFY")
@@ -92,6 +115,24 @@ func (c *Config) env() {
 func (c *Config) defaults() {
 	if c.Listen == "" {
 		c.Listen = ":8080"
+	}
+	if c.DataDir == "" {
+		c.DataDir = "data"
+	}
+	if len(c.Users.ObjectClasses) == 0 {
+		c.Users.ObjectClasses = []string{"inetOrgPerson"}
+	}
+	if c.Users.RDNAttribute == "" {
+		c.Users.RDNAttribute = "uid"
+	}
+	if c.Groups.ObjectClass == "" {
+		c.Groups.ObjectClass = "groupOfNames"
+	}
+	if c.Groups.MemberAttribute == "" {
+		c.Groups.MemberAttribute = "member"
+	}
+	if c.Password.MinLength == 0 {
+		c.Password.MinLength = 8
 	}
 	if len(c.Users.LoginAttributes) == 0 {
 		c.Users.LoginAttributes = []string{"uid", "mail"}

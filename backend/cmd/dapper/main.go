@@ -8,6 +8,7 @@ import (
 
 	"github.com/koreesmith/dapper/backend/internal/api"
 	"github.com/koreesmith/dapper/backend/internal/config"
+	"github.com/koreesmith/dapper/backend/internal/policy"
 )
 
 func main() {
@@ -19,6 +20,11 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
+	pol, err := policy.Load(cfg.DataDir)
+	if err != nil {
+		log.Fatalf("policy: %v", err)
+	}
+
 	var static http.Handler
 	if cfg.Static != "" {
 		if _, err := os.Stat(cfg.Static); err != nil {
@@ -27,7 +33,7 @@ func main() {
 		static = http.FileServer(http.Dir(cfg.Static))
 	}
 	log.Printf("dapper listening on %s", cfg.Listen)
-	log.Fatal(http.ListenAndServe(cfg.Listen, api.New(cfg).Handler(static)))
+	log.Fatal(http.ListenAndServe(cfg.Listen, api.New(cfg, pol).Handler(static)))
 }
 
 func envOr(k, d string) string {
