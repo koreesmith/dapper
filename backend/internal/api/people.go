@@ -203,7 +203,7 @@ func (s *Server) buildChanges(cur *ldapclient.Entry, in map[string][]string, all
 		}
 		oldFull := strings.TrimSpace(first(cur.Values("givenName")) + " " + first(cur.Values("sn")))
 		full := strings.TrimSpace(g + " " + n)
-		changes = append(changes, ldapclient.Change{Op: "replace", Attr: "cn", Values: []string{full}})
+		changes = append(changes, ldapclient.Change{Op: "replace", Attr: "cn", Values: syncFullName(cur, oldFull, full)})
 		if _, explicit := want["displayName"]; !explicit && first(cur.Values("displayName")) == oldFull {
 			changes = append(changes, ldapclient.Change{Op: "replace", Attr: "displayName", Values: []string{full}})
 		}
@@ -278,6 +278,10 @@ func (s *Server) personAttrs(cfg *config.Config, username string, in map[string]
 	}
 	full := strings.TrimSpace(first(attrs["givenName"]) + " " + first(attrs["sn"]))
 	attrs["cn"] = []string{full}
+	if strings.EqualFold(cfg.Users.RDNAttribute, "cn") {
+		// The account is named cn=<username>, so that value has to be one of its cn values.
+		attrs["cn"] = addUnique([]string{username}, full)
+	}
 	if _, ok := attrs["displayName"]; !ok {
 		attrs["displayName"] = []string{full}
 	}
@@ -508,4 +512,26 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request, sess *ses
 		resp["temporaryPassword"] = password
 	}
 	writeJSON(w, resp)
+}
+
+// syncFullName returns the new set of cn values after a name change: the old full name is
+// replaced by the new one, and every other value is kept. In particular the value the
+// entry is named by (for example cn=koree in cn=koree,ou=People,...) must never be
+// removed, or the directory refuses the change with a naming violation.
+func syncFullName(cur *ldapclient.Entry, oldFull, full string) []string {
+	rdnAttr, rdnVal := rdnParts(cur.DN)
+	protected := func(v string) bool { return strings.EqualFold(rdnAttr, "cn") && strings.EqualFold(v, rdnVal) }
+	var next []string
+	for _, v := range cur.Values("cn") {
+		if strings.EqualFold(v, oldFull) && !protected(v) {
+			continue
+		}
+		next = append(next, v)
+	}
+	for _, v := range next {
+		if strings.EqualFold(v, full) {
+			return next
+		}
+	}
+	return append(next, full)
 }

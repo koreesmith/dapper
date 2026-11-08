@@ -71,6 +71,9 @@ func FromEntry(e ldapclient.Entry) User {
 		Suspended:  first(e, "pwdAccountLockedTime") != "",
 		Phones:     append(all(e, "telephoneNumber"), all(e, "mobile")...),
 	}
+	if u.Username == "" {
+		u.Username = rdnValue(e.DN)
+	}
 	if u.Name == "" {
 		u.Name = u.Username
 	}
@@ -186,4 +189,20 @@ func List(all []User, q Query) Page {
 		end = total
 	}
 	return Page{Users: matched[start:end], Total: total, Page: q.Page, PageSize: q.PageSize}
+}
+
+// rdnValue returns the value in the entry's own name, e.g. "koree" for cn=koree,ou=People,...
+func rdnValue(dn string) string {
+	for i := 0; i < len(dn); i++ {
+		if dn[i] == '\\' {
+			i++
+		} else if dn[i] == ',' {
+			dn = dn[:i]
+			break
+		}
+	}
+	if i := strings.IndexByte(dn, '='); i >= 0 {
+		return strings.ReplaceAll(dn[i+1:], "\\", "")
+	}
+	return ""
 }

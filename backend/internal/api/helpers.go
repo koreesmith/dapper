@@ -85,6 +85,9 @@ func friendlyError(err error) (int, string) {
 	case ldap.LDAPResultNoSuchObject:
 		return http.StatusNotFound, "That item no longer exists. It may have been removed by someone else."
 	case ldap.LDAPResultConstraintViolation:
+		if strings.Contains(strings.ToLower(le.Error()), "non-unique") {
+			return http.StatusConflict, "Another account already uses one of those values (for example the same username or email), and the directory requires them to be unique."
+		}
 		return http.StatusBadRequest, "The directory rejected that value" + detail(le) + ". If this was a password, it may not meet the server's password policy."
 	case ldap.LDAPResultInvalidAttributeSyntax, ldap.LDAPResultInvalidDNSyntax:
 		return http.StatusBadRequest, "One of the values is in a format the directory doesn't accept."
@@ -94,6 +97,8 @@ func friendlyError(err error) (int, string) {
 		return http.StatusConflict, "That item still contains other entries and can't be removed yet."
 	case ldap.LDAPResultUndefinedAttributeType, ldap.LDAPResultNoSuchAttribute:
 		return http.StatusBadRequest, "The directory doesn't support one of those fields" + detail(le) + "."
+	case ldap.LDAPResultNamingViolation:
+		return http.StatusBadRequest, "The directory refused that change because it would affect the name the account is stored under" + detail(le) + "."
 	case ldap.LDAPResultUnwillingToPerform:
 		return http.StatusBadRequest, "The directory declined to do that" + detail(le) + "."
 	case ldap.LDAPResultBusy, ldap.LDAPResultUnavailable, ldap.ErrorNetwork:

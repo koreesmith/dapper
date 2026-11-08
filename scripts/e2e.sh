@@ -101,6 +101,28 @@ req admin DELETE "/api/admin/user?dn=$UDN"; check "delete user" 200
 req admin GET "/api/admin/users?q=$U"; expect "user gone" "$(jq_ "d['total']")" 0
 req admin GET "/api/admin/group?dn=cn=staff,ou=groups,dc=example,dc=org"; expect "removed from groups on delete" "$(jq_ "len([m for m in d['members'] if m['username']=='$U'])")" 0
 
+# --- accounts named by cn (cn=name,ou=people,...) rather than uid ---
+CN=cnuser$RANDOM; CDN="cn=$CN,ou=people,dc=example,dc=org"
+req admin POST /api/admin/entry "{\"dn\":\"$CDN\",\"attrs\":{\"objectClass\":[\"inetOrgPerson\"],\"cn\":[\"$CN\",\"Old Name\"],\"sn\":[\"Name\"],\"givenName\":[\"Old\"],\"displayName\":[\"Old Name\"],\"mail\":[\"$CN@example.org\"]}}"
+check "add an account named by cn" 200
+req admin GET "/api/admin/users?q=$CN"; expect "listed under its cn name when it has no uid" "$(jq_ "d['users'][0]['username']")" "$CN"
+req admin PATCH "/api/admin/user?dn=$CDN" '{"attrs":{"givenName":["New"],"sn":["Person"]}}'
+check "renaming a cn-named account works (was a naming violation)" 200
+req admin GET "/api/admin/entry?dn=$CDN"
+expect "naming value kept, new full name added" "$(jq_ "sorted(d['attrs']['cn'], key=str.lower)")" "['$CN', 'New Person']"
+expect "display name followed the new name" "$(jq_ "d['attrs']['displayName'][0]")" "New Person"
+req admin DELETE "/api/admin/entry?dn=$CDN" >/dev/null
+req admin GET /api/admin/settings; S=$BODY
+cnmod() { python3 -c "import json,sys;d=json.loads(sys.argv[1])['settings'];d['users']['rdnAttribute']=sys.argv[2];print(json.dumps(d))" "$S" "$1"; }
+req admin PUT /api/admin/settings "$(cnmod cn)"; check "name new accounts by cn" 200
+NC=cnnew$RANDOM
+req admin POST /api/admin/users "{\"username\":\"$NC\",\"attrs\":{\"givenName\":[\"Nina\"],\"sn\":[\"Cn\"]}}"
+check "create an account named by cn (was a naming violation)" 200
+expect "its DN uses cn" "$(jq_ "d['dn']")" "cn=$NC,ou=people,dc=example,dc=org"
+req admin PATCH "/api/admin/user?dn=cn=$NC,ou=people,dc=example,dc=org" '{"attrs":{"givenName":["Nora"]}}'; check "and it can be renamed" 200
+req admin DELETE "/api/admin/user?dn=cn=$NC,ou=people,dc=example,dc=org"; check "and deleted" 200
+req admin PUT /api/admin/settings "$(cnmod uid)"; check "restore uid naming" 200
+
 # --- hardening ---
 CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/logout"); expect "CSRF header required" "$CODE" 403
 for i in 1 2 3 4 5; do login brute2 victim wrong; done

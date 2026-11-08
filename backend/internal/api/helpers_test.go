@@ -249,3 +249,66 @@ func TestSuggestContainers(t *testing.T) {
 		t.Errorf("fallbacks: %v", empty)
 	}
 }
+
+func TestRenameKeepsTheNamingValue(t *testing.T) {
+	s := newTestServer(t)
+	// An account named cn=koree: the value "koree" must survive a name change.
+	cur := &ldapclient.Entry{DN: "cn=koree,ou=People,dc=kasasmith,dc=com", Attrs: map[string][]string{
+		"cn": {"koree", "Koree Smith"}, "givenName": {"Koree"}, "sn": {"Smith"}, "displayName": {"Koree Smith"}, "objectClass": {"inetOrgPerson"},
+	}}
+	all := func(policy.Field) bool { return true }
+	ch, err := s.buildChanges(cur, map[string][]string{"givenName": {"Kor"}, "sn": {"Smyth"}}, all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cn []string
+	for _, c := range ch {
+		if c.Attr == "cn" {
+			cn = c.Values
+		}
+	}
+	has := func(vs []string, w string) bool {
+		for _, v := range vs {
+			if v == w {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(cn, "koree") || !has(cn, "Kor Smyth") || has(cn, "Koree Smith") {
+		t.Errorf("cn after rename = %v", cn)
+	}
+
+	// The same when the account's cn holds only the full name and it is named by uid: it is replaced.
+	cur2 := &ldapclient.Entry{DN: "uid=jo,ou=people,dc=x", Attrs: map[string][]string{
+		"cn": {"Jo Lee"}, "givenName": {"Jo"}, "sn": {"Lee"}, "displayName": {"Jo Lee"}, "uid": {"jo"},
+	}}
+	ch, _ = s.buildChanges(cur2, map[string][]string{"sn": {"Li"}}, all)
+	for _, c := range ch {
+		if c.Attr == "cn" && (len(c.Values) != 1 || c.Values[0] != "Jo Li") {
+			t.Errorf("uid-named cn = %v", c.Values)
+		}
+	}
+	// If the new name equals one already present, it isn't duplicated.
+	if got := syncFullName(cur, "Koree Smith", "koree"); len(got) != 1 || got[0] != "koree" {
+		t.Errorf("no duplicates: %v", got)
+	}
+}
+
+func TestNewAccountNamedByCN(t *testing.T) {
+	s := newTestServer(t)
+	cfg := s.c()
+	cfg.Users.RDNAttribute = "cn"
+	attrs, err := s.personAttrs(cfg, "casey", map[string][]string{"givenName": {"Casey"}, "sn": {"Jones"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attrs["cn"]) != 2 || attrs["cn"][0] != "casey" || attrs["cn"][1] != "Casey Jones" {
+		t.Errorf("cn must include the naming value: %v", attrs["cn"])
+	}
+	cfg.Users.RDNAttribute = "uid"
+	attrs, _ = s.personAttrs(cfg, "casey", map[string][]string{"givenName": {"Casey"}, "sn": {"Jones"}})
+	if len(attrs["cn"]) != 1 || attrs["cn"][0] != "Casey Jones" {
+		t.Errorf("uid-named accounts keep a single cn: %v", attrs["cn"])
+	}
+}

@@ -70,3 +70,14 @@ func TestPagingAndSort(t *testing.T) {
 		t.Error("page size should be capped")
 	}
 }
+
+func TestUsernameFallsBackToTheEntryName(t *testing.T) {
+	e := ldapclient.Entry{DN: "cn=koree,ou=People,dc=kasasmith,dc=com", Attrs: map[string][]string{"cn": {"koree", "Koree Smith"}, "displayName": {"Koree Smith"}}}
+	if u := FromEntry(e); u.Username != "koree" || u.Name != "Koree Smith" {
+		t.Errorf("got %q / %q", u.Username, u.Name)
+	}
+	e2 := ldapclient.Entry{DN: `cn=a\,b,ou=p`, Attrs: map[string][]string{}}
+	if got := FromEntry(e2).Username; got != "a,b" {
+		t.Errorf("escaped comma: %q", got)
+	}
+}
