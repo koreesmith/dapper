@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, Entry, Me } from "./api";
+import { ThemePicker } from "./ThemePicker";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -21,6 +22,8 @@ function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
   const [busy, setBusy] = useState(false);
 
   return (
+    <>
+    <div className="corner"><ThemePicker /></div>
     <form className="card" onSubmit={async (e) => {
       e.preventDefault();
       setBusy(true); setErr("");
@@ -38,6 +41,7 @@ function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
       {err && <p className="error" role="alert">{err}</p>}
       <button disabled={busy || !username || !password}>{busy ? "Signing in…" : "Sign in"}</button>
     </form>
+    </>
   );
 }
 
@@ -54,6 +58,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
           )}
         </nav>
         <span className="spacer" />
+        <ThemePicker />
         <span>{me.name}{me.isAdmin ? " (admin)" : ""}</span>
         <button onClick={onSignOut}>Sign out</button>
       </header>
