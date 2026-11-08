@@ -356,6 +356,9 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request, sess *sessi
 		Description string `json:"description"`
 		Kind        string `json:"kind"` // standard (default) or linux
 		GID         string `json:"gid"`
+		// Adopt: the number is already some people's primary group, and this new group is the one
+		// they were missing. Only another group using the number is a clash.
+		Adopt bool `json:"adopt"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "Invalid request.")
@@ -385,7 +388,18 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request, sess *sessi
 		if linux {
 			unixMu.Lock() // keep "pick a free number" and "use it" together
 			defer unixMu.Unlock()
-			id, err := s.chooseID(c, cfg, in.GID)
+			var id int
+			var err error
+			if in.Adopt && strings.TrimSpace(in.GID) != "" {
+				if id, err = parseGID(in.GID); err == nil {
+					var other *ldapclient.GroupEntry
+					if other, err = s.otherGroupWithGID(c, "", strconv.Itoa(id)); err == nil && other != nil {
+						err = validationError("The group “" + other.Name + "” already has the ID " + strconv.Itoa(id) + ".")
+					}
+				}
+			} else {
+				id, err = s.chooseID(c, cfg, in.GID)
+			}
 			if err != nil {
 				return err
 			}

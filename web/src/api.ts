@@ -59,6 +59,13 @@ export interface OverlayPreview {
 }
 export interface FoundGroup { dn: string; name: string; members: number; class: string }
 export interface FoundPerson { dn: string; username: string; name: string }
+export interface GIDPerson { dn: string; username: string; name: string }
+export interface GIDPreview {
+  group: string; old: string; new: string; moving: GIDPerson[]; adopted: GIDPerson[]; conflict?: string; warnings: string[]; chgrpHint?: string;
+}
+export interface PersonGIDPreview { person: string; old: string; new: string; group: string; warnings: string[] }
+export interface GIDFix { label: string; kind: "groupGID" | "personGID" | "createGroup"; groupDN?: string; personDN?: string; gid: string; groupName?: string }
+export interface GIDIssue { kind: string; title: string; detail: string; fixes: GIDFix[] }
 export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
@@ -125,6 +132,11 @@ export const api = {
   group: (dn: string) => req<GroupDetail>(`/api/admin/group?${q(dn)}`),
   createGroup: (name: string, kind: "standard" | "linux" = "standard") => req<{ dn: string }>("/api/admin/groups", json("POST", { name, kind })),
   deleteGroup: (dn: string) => req(`/api/admin/group?${q(dn)}`, { method: "DELETE" }),
+  checkGroups: () => req<{ issues: GIDIssue[] }>("/api/admin/groups/check"),
+  groupGID: (dn: string, gid: string, movePeople: boolean, confirmed = false) =>
+    req<GIDPreview & { ok?: boolean; moved?: number; preview?: GIDPreview }>("/api/admin/group/gid", json("POST", { dn, gid, movePeople, confirmed })),
+  personGID: (dn: string, gid: string, confirmed = false) => req<PersonGIDPreview & { ok?: boolean }>("/api/admin/user/gid", json("POST", { dn, gid, confirmed })),
+  createLinuxGroup: (name: string, gid: string, adopt = false) => req<{ dn: string }>("/api/admin/groups", json("POST", { name, kind: "linux", gid, adopt })),
   addMember: (group: string, member: string) => req(`/api/admin/group/members?${q(group)}`, json("POST", { member })),
   removeMember: (group: string, member: string) =>
     req(`/api/admin/group/members?${q(group)}&member=${encodeURIComponent(member)}`, { method: "DELETE" }),

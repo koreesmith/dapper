@@ -62,6 +62,8 @@ jobs:
         run: ./scripts/e2e-unix.sh
       - name: Group tests (Linux and personal groups)
         run: ./scripts/e2e-groups.sh
+      - name: Group ID tests
+        run: ./scripts/e2e-gid.sh
       - name: Server feature (overlay) tests
         run: ./scripts/e2e-overlays.sh
       - name: Paging tests against the live directory

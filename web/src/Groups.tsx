@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, GroupDetail as Group, GroupKind, GroupPage, User } from "./api";
 import { go, href } from "./router";
 import { Modal, Notice } from "./ui";
+import { ChangeGroupID, GroupChecker } from "./GroupIDs";
 
 export const KIND_LABEL: Record<GroupKind, string> = { shared: "Group", linux: "Linux group", personal: "Personal group" };
 const KIND_HELP: Record<GroupKind, string> = {
@@ -59,6 +60,8 @@ export function Groups() {
       </form>
       {err && <Notice kind="error">{err}</Notice>}
 
+      <GroupChecker />
+
       <div className="list-tools">
         <nav className="subtabs" aria-label="Kinds of group">
           {tab("", "All", (c.shared ?? 0) + (c.linux ?? 0) + (c.personal ?? 0))}
@@ -99,6 +102,8 @@ export function GroupDetail({ dn }: { dn: string }) {
   const [g, setG] = useState<Group | null>(null);
   const [err, setErr] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [changeID, setChangeID] = useState(false);
+  const [done, setDone] = useState("");
   const load = () => api.group(dn).then((d) => { setG(d); setErr(""); }).catch((x) => setErr((x as Error).message));
   useEffect(() => { setG(null); load(); }, [dn]);
 
@@ -112,9 +117,13 @@ export function GroupDetail({ dn }: { dn: string }) {
           <h2>{g.name}</h2>
           <div className="sub">{KIND_LABEL[g.kind]}{g.gid ? ` · group ID ${g.gid}` : ""}</div>
         </div>
-        <button className="danger" onClick={() => setConfirm(true)}>Delete group…</button>
+        <div className="actions">
+          {g.gid && <button onClick={() => setChangeID(true)}>Change group ID…</button>}
+          <button className="danger" onClick={() => setConfirm(true)}>Delete group…</button>
+        </div>
       </div>
       <p className="sub">{KIND_HELP[g.kind]}</p>
+      {done && <Notice kind="ok">{done}</Notice>}
       {err && <Notice kind="error">{err}</Notice>}
 
       <div className="panel">
@@ -153,6 +162,11 @@ export function GroupDetail({ dn }: { dn: string }) {
             </tbody>
           </table>
         </>
+      )}
+
+      {changeID && g.gid && (
+        <ChangeGroupID dn={dn} name={g.name} current={g.gid} onClose={() => setChangeID(false)}
+          onDone={(m) => { setChangeID(false); setDone(m); load(); }} />
       )}
 
       {confirm && (

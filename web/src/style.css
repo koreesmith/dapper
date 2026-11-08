@@ -192,3 +192,6 @@ h4 { margin: 4px 0; }
 .warnmsg { color: var(--warn); border-left: 3px solid var(--warn); padding-left: 10px; margin: 4px 0; }
 .plainlist { list-style: disc; }
 ol.plainlist { list-style: decimal; }
+
+.issues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.issues li { border-top: 1px solid var(--border); padding-top: 10px; }

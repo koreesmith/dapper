@@ -109,6 +109,12 @@ changes nothing. You can also create a missing container later from the Settings
   removing a member uses the right form for each kind. A Linux group that someone has as their primary group
   can't be deleted until you change their primary group, and deleting a person also removes their personal
   group and takes them out of other groups' member lists.
+- **Fixing group numbers.** Each Linux group page has **Change group ID…**, and the Groups page has **Check group
+  numbers**, which finds mismatches (a personal group whose number differs from the person's own, someone whose primary
+  group number matches no group, groups sharing a number) and offers one-click fixes. Every change is previewed and needs
+  your approval, a number another group uses is refused, and you can move the people whose primary group it is along
+  with it. **This only changes the directory**: files on your servers stay owned by the old number, so the preview
+  shows a `chgrp` command you can adapt to move them too.
 - **Suspending moves the account** to the suspended container, so its DN changes. Dapper updates group
   membership in your groups container, but anything else that refers to the old DN (ACLs, other
   applications) won't follow. If that matters, use `ppolicy` locking instead.
