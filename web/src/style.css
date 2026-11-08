@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px system-ui, sans-serif; color: #1c1c1e; }
+.card { max-width: 380px; margin: 10vh auto; display: flex; flex-direction: column; gap: 10px; }
+label { display: flex; flex-direction: column; gap: 4px; }
+label.inline { flex-direction: row; align-items: center; }
+input { padding: 6px 8px; border: 1px solid #bbb; border-radius: 4px; }
+button { padding: 6px 12px; cursor: pointer; }
+button.danger { color: #b00020; }
+.error { color: #b00020; }
+.layout { display: grid; grid-template: "h h" auto "a m" 1fr / 340px 1fr; height: 100vh; }
+header { grid-area: h; display: flex; gap: 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+header form { flex: 1; } header input { width: 100%; }
+aside { grid-area: a; overflow: auto; border-right: 1px solid #ddd; padding: 8px; }
+main { grid-area: m; overflow: auto; padding: 12px 16px; }
+ul { list-style: none; padding-left: 16px; margin: 0; }
+aside > ul { padding-left: 0; }
+.twist { display: inline-block; width: 14px; cursor: pointer; }
+.node { cursor: pointer; } .node.sel { font-weight: 600; }
+table { border-collapse: collapse; margin-bottom: 12px; }
+th { text-align: left; vertical-align: top; padding: 4px 12px 4px 0; font-weight: 500; }
+td input { display: block; width: 420px; margin-bottom: 4px; }

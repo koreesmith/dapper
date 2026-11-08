@@ -1,0 +1,11 @@
+# Development stack: a throwaway OpenLDAP server to test against.
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: Example
+      LDAP_DOMAIN: example.org
+      LDAP_ADMIN_PASSWORD: admin
+    ports:
+      - "389:389"
+      - "636:636"
