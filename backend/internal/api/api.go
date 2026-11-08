@@ -6,11 +6,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/koreesmith/dapper/backend/internal/config"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
 	"github.com/koreesmith/dapper/backend/internal/session"
+	"github.com/koreesmith/dapper/backend/internal/users"
 )
 
 const cookieName = "dapper_session"
@@ -36,6 +38,8 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("GET /api/me", s.user(s.me))
+
+	mux.HandleFunc("GET /api/admin/users", s.admin(s.listUsers))
 
 	// Admin-only directory access. Enforced here, not just hidden in the UI.
 	mux.HandleFunc("GET /api/admin/children", s.admin(s.children))
@@ -248,4 +252,43 @@ func fail(w http.ResponseWriter, code int, msg string) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// maxUsers bounds how many accounts one search loads into memory.
+const maxUsers = 5000
+
+// listUsers is the friendly people list: plain-language search, sorting and
+// paging with no LDAP knowledge required. It reads through the service
+// account, since the directory's own ACLs usually hide other people from the
+// admin's personal bind; admin status was already checked by the caller.
+func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ *session.Session) {
+	svc, err := ldapclient.Dial(s.srv)
+	if err == nil {
+		defer svc.Close()
+		err = svc.Bind(s.cfg.LDAP.BindDN, s.cfg.LDAP.BindPassword)
+	}
+	if err != nil {
+		log.Printf("list users: service account: %v", err)
+		fail(w, http.StatusBadGateway, "Dapper cannot reach the directory. Contact your administrator.")
+		return
+	}
+	entries, truncated, err := svc.ListPeople(s.cfg.Users.BaseDN, users.Attrs, maxUsers)
+	if err != nil {
+		log.Printf("list users: %v", err)
+		fail(w, http.StatusBadGateway, "Could not read the user list from the directory.")
+		return
+	}
+	all := make([]users.User, len(entries))
+	for i, e := range entries {
+		all[i] = users.FromEntry(e)
+	}
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	size, _ := strconv.Atoi(q.Get("pageSize"))
+	res := users.List(all, users.Query{
+		Search: q.Get("q"), Sort: q.Get("sort"), Desc: q.Get("dir") == "desc", Page: page, PageSize: size,
+	})
+	writeJSON(w, map[string]any{
+		"users": res.Users, "total": res.Total, "page": res.Page, "pageSize": res.PageSize, "truncated": truncated,
+	})
 }

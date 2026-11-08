@@ -33,3 +33,335 @@ dn: cn=dapper-admins,ou=groups,dc=example,dc=org
 objectClass: groupOfNames
 cn: dapper-admins
 member: uid=alice,ou=people,dc=example,dc=org
+
+# Extra sample users for exercising search and paging.
+
+dn: uid=ada.reyes0,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ada.reyes0
+cn: Ada Reyes
+sn: Reyes
+givenName: Ada
+displayName: Ada Reyes
+mail: ada.reyes0@example.org
+telephoneNumber: +1 555 0200
+userPassword: changeme0
+
+dn: uid=ben.okafor1,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ben.okafor1
+cn: Ben Okafor
+sn: Okafor
+givenName: Ben
+displayName: Ben Okafor
+mail: ben.okafor1@example.org
+telephoneNumber: +1 555 0201
+userPassword: changeme1
+
+dn: uid=cleo.lindqvist2,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: cleo.lindqvist2
+cn: Cleo Lindqvist
+sn: Lindqvist
+givenName: Cleo
+displayName: Cleo Lindqvist
+mail: cleo.lindqvist2@example.org
+telephoneNumber: +1 555 0202
+userPassword: changeme2
+
+dn: uid=dev.tanaka3,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: dev.tanaka3
+cn: Dev Tanaka
+sn: Tanaka
+givenName: Dev
+displayName: Dev Tanaka
+mail: dev.tanaka3@example.org
+telephoneNumber: +1 555 0203
+userPassword: changeme3
+
+dn: uid=eli.moreau4,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: eli.moreau4
+cn: Eli Moreau
+sn: Moreau
+givenName: Eli
+displayName: Eli Moreau
+mail: eli.moreau4@example.org
+telephoneNumber: +1 555 0204
+userPassword: changeme4
+
+dn: uid=fay.schmidt5,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: fay.schmidt5
+cn: Fay Schmidt
+sn: Schmidt
+givenName: Fay
+displayName: Fay Schmidt
+mail: fay.schmidt5@example.org
+telephoneNumber: +1 555 0205
+userPassword: changeme5
+
+dn: uid=gus.reyes6,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: gus.reyes6
+cn: Gus Reyes
+sn: Reyes
+givenName: Gus
+displayName: Gus Reyes
+mail: gus.reyes6@example.org
+telephoneNumber: +1 555 0206
+userPassword: changeme6
+
+dn: uid=hana.okafor7,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: hana.okafor7
+cn: Hana Okafor
+sn: Okafor
+givenName: Hana
+displayName: Hana Okafor
+mail: hana.okafor7@example.org
+telephoneNumber: +1 555 0207
+userPassword: changeme7
+
+dn: uid=ivan.lindqvist8,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ivan.lindqvist8
+cn: Ivan Lindqvist
+sn: Lindqvist
+givenName: Ivan
+displayName: Ivan Lindqvist
+mail: ivan.lindqvist8@example.org
+telephoneNumber: +1 555 0208
+userPassword: changeme8
+
+dn: uid=jo.tanaka9,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: jo.tanaka9
+cn: Jo Tanaka
+sn: Tanaka
+givenName: Jo
+displayName: Jo Tanaka
+mail: jo.tanaka9@example.org
+telephoneNumber: +1 555 0209
+userPassword: changeme9
+
+dn: uid=ada.moreau10,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ada.moreau10
+cn: Ada Moreau
+sn: Moreau
+givenName: Ada
+displayName: Ada Moreau
+mail: ada.moreau10@example.org
+telephoneNumber: +1 555 0210
+userPassword: changeme10
+
+dn: uid=ben.schmidt11,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ben.schmidt11
+cn: Ben Schmidt
+sn: Schmidt
+givenName: Ben
+displayName: Ben Schmidt
+mail: ben.schmidt11@example.org
+telephoneNumber: +1 555 0211
+userPassword: changeme11
+
+dn: uid=cleo.reyes12,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: cleo.reyes12
+cn: Cleo Reyes
+sn: Reyes
+givenName: Cleo
+displayName: Cleo Reyes
+mail: cleo.reyes12@example.org
+telephoneNumber: +1 555 0212
+userPassword: changeme12
+
+dn: uid=dev.okafor13,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: dev.okafor13
+cn: Dev Okafor
+sn: Okafor
+givenName: Dev
+displayName: Dev Okafor
+mail: dev.okafor13@example.org
+telephoneNumber: +1 555 0213
+userPassword: changeme13
+
+dn: uid=eli.lindqvist14,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: eli.lindqvist14
+cn: Eli Lindqvist
+sn: Lindqvist
+givenName: Eli
+displayName: Eli Lindqvist
+mail: eli.lindqvist14@example.org
+telephoneNumber: +1 555 0214
+userPassword: changeme14
+
+dn: uid=fay.tanaka15,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: fay.tanaka15
+cn: Fay Tanaka
+sn: Tanaka
+givenName: Fay
+displayName: Fay Tanaka
+mail: fay.tanaka15@example.org
+telephoneNumber: +1 555 0215
+userPassword: changeme15
+
+dn: uid=gus.moreau16,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: gus.moreau16
+cn: Gus Moreau
+sn: Moreau
+givenName: Gus
+displayName: Gus Moreau
+mail: gus.moreau16@example.org
+telephoneNumber: +1 555 0216
+userPassword: changeme16
+
+dn: uid=hana.schmidt17,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: hana.schmidt17
+cn: Hana Schmidt
+sn: Schmidt
+givenName: Hana
+displayName: Hana Schmidt
+mail: hana.schmidt17@example.org
+telephoneNumber: +1 555 0217
+userPassword: changeme17
+
+dn: uid=ivan.reyes18,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ivan.reyes18
+cn: Ivan Reyes
+sn: Reyes
+givenName: Ivan
+displayName: Ivan Reyes
+mail: ivan.reyes18@example.org
+telephoneNumber: +1 555 0218
+userPassword: changeme18
+
+dn: uid=jo.okafor19,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: jo.okafor19
+cn: Jo Okafor
+sn: Okafor
+givenName: Jo
+displayName: Jo Okafor
+mail: jo.okafor19@example.org
+telephoneNumber: +1 555 0219
+userPassword: changeme19
+
+dn: uid=ada.lindqvist20,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ada.lindqvist20
+cn: Ada Lindqvist
+sn: Lindqvist
+givenName: Ada
+displayName: Ada Lindqvist
+mail: ada.lindqvist20@example.org
+telephoneNumber: +1 555 0220
+userPassword: changeme20
+
+dn: uid=ben.tanaka21,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ben.tanaka21
+cn: Ben Tanaka
+sn: Tanaka
+givenName: Ben
+displayName: Ben Tanaka
+mail: ben.tanaka21@example.org
+telephoneNumber: +1 555 0221
+userPassword: changeme21
+
+dn: uid=cleo.moreau22,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: cleo.moreau22
+cn: Cleo Moreau
+sn: Moreau
+givenName: Cleo
+displayName: Cleo Moreau
+mail: cleo.moreau22@example.org
+telephoneNumber: +1 555 0222
+userPassword: changeme22
+
+dn: uid=dev.schmidt23,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: dev.schmidt23
+cn: Dev Schmidt
+sn: Schmidt
+givenName: Dev
+displayName: Dev Schmidt
+mail: dev.schmidt23@example.org
+telephoneNumber: +1 555 0223
+userPassword: changeme23
+
+dn: uid=eli.reyes24,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: eli.reyes24
+cn: Eli Reyes
+sn: Reyes
+givenName: Eli
+displayName: Eli Reyes
+mail: eli.reyes24@example.org
+telephoneNumber: +1 555 0224
+userPassword: changeme24
+
+dn: uid=fay.okafor25,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: fay.okafor25
+cn: Fay Okafor
+sn: Okafor
+givenName: Fay
+displayName: Fay Okafor
+mail: fay.okafor25@example.org
+telephoneNumber: +1 555 0225
+userPassword: changeme25
+
+dn: uid=gus.lindqvist26,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: gus.lindqvist26
+cn: Gus Lindqvist
+sn: Lindqvist
+givenName: Gus
+displayName: Gus Lindqvist
+mail: gus.lindqvist26@example.org
+telephoneNumber: +1 555 0226
+userPassword: changeme26
+
+dn: uid=hana.tanaka27,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: hana.tanaka27
+cn: Hana Tanaka
+sn: Tanaka
+givenName: Hana
+displayName: Hana Tanaka
+mail: hana.tanaka27@example.org
+telephoneNumber: +1 555 0227
+userPassword: changeme27
+
+dn: uid=ivan.moreau28,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: ivan.moreau28
+cn: Ivan Moreau
+sn: Moreau
+givenName: Ivan
+displayName: Ivan Moreau
+mail: ivan.moreau28@example.org
+telephoneNumber: +1 555 0228
+userPassword: changeme28
+
+dn: uid=jo.schmidt29,ou=people,dc=example,dc=org
+objectClass: inetOrgPerson
+uid: jo.schmidt29
+cn: Jo Schmidt
+sn: Schmidt
+givenName: Jo
+displayName: Jo Schmidt
+mail: jo.schmidt29@example.org
+telephoneNumber: +1 555 0229
+userPassword: changeme29

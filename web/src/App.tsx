@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, Entry, Me } from "./api";
 import { ThemePicker } from "./ThemePicker";
+import { UserList } from "./UserList";
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -46,15 +47,19 @@ function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
 }
 
 function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
-  const [tab, setTab] = useState<"me" | "directory">("me");
+  // Admins land on the people list; everyone else on their own account.
+  const [tab, setTab] = useState<"people" | "me" | "directory">(me.isAdmin ? "people" : "me");
   return (
     <div className="shell">
       <header>
         <strong>Dapper</strong>
         <nav>
+          {me.isAdmin && (
+            <button className={tab === "people" ? "tab on" : "tab"} onClick={() => setTab("people")}>People</button>
+          )}
           <button className={tab === "me" ? "tab on" : "tab"} onClick={() => setTab("me")}>My account</button>
           {me.isAdmin && (
-            <button className={tab === "directory" ? "tab on" : "tab"} onClick={() => setTab("directory")}>Directory</button>
+            <button className={tab === "directory" ? "tab on" : "tab"} onClick={() => setTab("directory")}>Advanced</button>
           )}
         </nav>
         <span className="spacer" />
@@ -62,11 +67,9 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
         <span>{me.name}{me.isAdmin ? " (admin)" : ""}</span>
         <button onClick={onSignOut}>Sign out</button>
       </header>
-      {tab === "me" || !me.isAdmin ? (
-        <main className="page"><h2>Welcome, {me.name}</h2><p>Profile and password management are coming next.</p></main>
-      ) : (
-        <Browser />
-      )}
+      {tab === "people" && me.isAdmin ? <UserList />
+        : tab === "directory" && me.isAdmin ? <Browser />
+        : <main className="page"><h2>Welcome, {me.name}</h2><p>Profile and password management are coming next.</p></main>}
     </div>
   );
 }

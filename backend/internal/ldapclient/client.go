@@ -185,3 +185,16 @@ func (c *Client) Modify(dn string, changes []Change) error {
 }
 
 func (c *Client) Delete(dn string) error { return c.conn.Del(ldap.NewDelRequest(dn, nil)) }
+
+// ListPeople returns up to limit person entries under base with the given
+// attributes. truncated is true when more exist than were returned.
+func (c *Client) ListPeople(base string, attrs []string, limit int) (entries []Entry, truncated bool, err error) {
+	es, err := c.search(base, ldap.ScopeWholeSubtree, "(objectClass=person)", attrs, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(es) > limit {
+		return es[:limit], true, nil
+	}
+	return es, false, nil
+}

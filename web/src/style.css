@@ -66,3 +66,19 @@ aside > ul { padding-left: 0; }
 table { border-collapse: collapse; margin-bottom: 12px; }
 th { text-align: left; vertical-align: top; padding: 4px 12px 4px 0; font-weight: 500; color: var(--muted); }
 td input { display: block; width: 420px; max-width: 100%; margin-bottom: 4px; }
+
+.list-tools { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.search { flex: 1; max-width: 520px; padding: 8px 10px; }
+table.users { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+table.users th, table.users td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+table.users th { color: var(--muted); }
+table.users tbody tr:hover { background: var(--selected); }
+button.th { border: 0; background: transparent; padding: 0; font-weight: 600; color: var(--muted); }
+a { color: var(--primary); }
+.sub { color: var(--muted); font-size: 12px; }
+.empty { text-align: center !important; color: var(--muted); padding: 24px !important; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; border: 1px solid; }
+.badge.on { color: var(--primary); border-color: var(--primary); }
+.badge.off { color: var(--danger); border-color: var(--danger); }
+.pager { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
+.page { overflow: auto; flex: 1; }
