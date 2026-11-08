@@ -193,12 +193,25 @@ func (l *limiter) reset(keys ...string) {
 	}
 }
 
+// clientIP identifies the caller for rate limiting. When the connection comes from
+// a private or loopback address (a reverse proxy on the same host or network), the
+// address that proxy appended to X-Forwarded-For is used instead, so one person's
+// failed sign-ins aren't counted against everyone behind the proxy. The proxy's own
+// entry is the last one, so any values a client adds earlier are ignored.
 func clientIP(r *http.Request) string {
-	h, _, err := net.SplitHostPort(r.RemoteAddr)
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
-	return h
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if real := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(real) != nil {
+				return real
+			}
+		}
+	}
+	return host
 }
 
 // ---- passwords ----

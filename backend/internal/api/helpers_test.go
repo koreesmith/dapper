@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
@@ -173,5 +174,30 @@ func TestCheckPassword(t *testing.T) {
 	s := newTestServer(t)
 	if s.checkPassword("short") == nil || s.checkPassword("long-enough-1") != nil {
 		t.Error("minimum length not enforced")
+	}
+}
+
+func TestClientIP(t *testing.T) {
+	req := func(remote, xff string) *http.Request {
+		r, _ := http.NewRequest("GET", "/", nil)
+		r.RemoteAddr = remote
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		return r
+	}
+	cases := []struct{ remote, xff, want string }{
+		{"203.0.113.9:5000", "", "203.0.113.9"},
+		{"203.0.113.9:5000", "198.51.100.1", "203.0.113.9"},          // public peer: header is untrusted
+		{"127.0.0.1:5000", "198.51.100.7", "198.51.100.7"},           // proxy on this host
+		{"172.18.0.2:5000", "198.51.100.7", "198.51.100.7"},          // proxy on a private network
+		{"172.18.0.2:5000", "6.6.6.6, 198.51.100.7", "198.51.100.7"}, // spoofed prefix ignored
+		{"172.18.0.2:5000", "not-an-ip", "172.18.0.2"},
+		{"172.18.0.2:5000", "", "172.18.0.2"},
+	}
+	for _, c := range cases {
+		if got := clientIP(req(c.remote, c.xff)); got != c.want {
+			t.Errorf("clientIP(%s, %q) = %s, want %s", c.remote, c.xff, got, c.want)
+		}
 	}
 }

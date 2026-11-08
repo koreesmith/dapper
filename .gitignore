@@ -5,3 +5,4 @@ backend/bin/
 dapper.yaml
 .env
 data/
+docker-compose.override.yml
