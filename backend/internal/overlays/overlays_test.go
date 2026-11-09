@@ -210,7 +210,7 @@ func TestPolicyCreatesContainerAndEntry(t *testing.T) {
 		"dn: ou=policies,dc=example,dc=org\nchangetype: add\nobjectClass: organizationalUnit",
 		"dn: cn=default,ou=policies,dc=example,dc=org\nchangetype: add\nobjectClass: device\nobjectClass: pwdPolicy",
 		"pwdMinLength: 10", "pwdMaxAge: 7776000", "pwdInHistory: 5", "pwdLockout: TRUE", "pwdMaxFailure: 4", "pwdLockoutDuration: 1800",
-		"pwdAttribute: 2.5.4.35", "pwdMustChange: TRUE",
+		"pwdAttribute: 2.5.4.35", "pwdMustChange: TRUE", "pwdCheckQuality: 1",
 	} {
 		if !strings.Contains(data, w) {
 			t.Errorf("missing %q in data LDIF:\n%s", w, data)

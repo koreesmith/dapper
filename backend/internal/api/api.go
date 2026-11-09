@@ -90,6 +90,7 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/me/profile", s.user(s.getProfile))
 	mux.HandleFunc("PATCH /api/me/profile", s.user(s.updateProfile))
 	mux.HandleFunc("POST /api/me/password", s.user(s.changeOwnPassword))
+	mux.HandleFunc("GET /api/me/password-policy", s.user(s.myPasswordPolicy))
 
 	// Administration of people, groups and settings.
 	mux.HandleFunc("GET /api/admin/users", s.admin(s.listUsers))

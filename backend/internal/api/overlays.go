@@ -184,6 +184,11 @@ func (s *Server) overlaysGet(w http.ResponseWriter, _ *http.Request, sess *sessi
 			out["unlockError"] = "The configuration login stopped working. Please unlock again."
 		} else {
 			out["unlocked"], out["database"] = true, st.DBDN
+			if pe := st.Overlays["ppolicy"]; overlays.Active("ppolicy", pe) {
+				s.setPolicyDN(first(pe.Values["olcPPolicyDefault"]))
+			} else {
+				s.setPolicyDN("")
+			}
 			var policy map[string][]string
 			if pe := st.Overlays["ppolicy"]; pe != nil {
 				if pdn := first(pe.Values["olcPPolicyDefault"]); pdn != "" {
@@ -432,6 +437,15 @@ func (s *Server) overlaysApply(w http.ResponseWriter, r *http.Request, sess *ses
 	if req.Refresh && req.Overlay == "memberof" && req.Action == "enable" {
 		refreshed, _ = s.refreshMemberOf(svc)
 	}
+	if req.Overlay == "ppolicy" {
+		pdn := ""
+		if req.Action != "disable" {
+			if pdn = strings.TrimSpace(req.Values["policyDN"]); pdn == "" {
+				pdn = "cn=default,ou=policies," + ctx.Suffix
+			}
+		}
+		s.setPolicyDN(pdn)
+	}
 	audit(sess, "overlays."+req.Action, req.Overlay)
 	writeJSON(w, map[string]any{"ok": true, "backup": backup, "refreshedGroups": refreshed})
 }
@@ -580,5 +594,19 @@ func (s *Server) overlaysRefreshMemberOf(w http.ResponseWriter, r *http.Request,
 	if s.withSvc(w, func(c *ldapclient.Client) (err error) { n, err = s.refreshMemberOf(c); return }) {
 		audit(sess, "overlays.memberof.refresh", fmt.Sprint(n, " groups"))
 		writeJSON(w, map[string]int{"refreshedGroups": n})
+	}
+}
+
+// setPolicyDN records which entry holds the directory's password rules (empty when they're switched off),
+// so people are told the rules that are really in force. Settings locked by the environment are left alone.
+func (s *Server) setPolicyDN(dn string) {
+	cur := s.c()
+	if cur.Password.PolicyDN == dn {
+		return
+	}
+	next := *cur
+	next.Password.PolicyDN = dn
+	if err := s.store.Save(&next); err != nil {
+		log.Printf("couldn't record the password policy location: %v", err)
 	}
 }

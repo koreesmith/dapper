@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
@@ -310,5 +311,23 @@ func TestNewAccountNamedByCN(t *testing.T) {
 	attrs, _ = s.personAttrs(cfg, "casey", map[string][]string{"givenName": {"Casey"}, "sn": {"Jones"}})
 	if len(attrs["cn"]) != 1 || attrs["cn"][0] != "Casey Jones" {
 		t.Errorf("uid-named accounts keep a single cn: %v", attrs["cn"])
+	}
+}
+
+func TestPasswordRuleMessages(t *testing.T) {
+	for diag, want := range map[string]string{
+		"Password is in history of old passwords": "used that password before",
+		"Password fails quality checking policy":  "doesn't meet your organization's password rules",
+		"Password is too short for policy":        "too short",
+		"Password is too young to change":         "too recently",
+	} {
+		code, msg := friendlyError(ldap.NewError(ldap.LDAPResultConstraintViolation, errors.New(diag)))
+		if code != 400 || !strings.Contains(msg, want) {
+			t.Errorf("%q -> %d %q, want it to mention %q", diag, code, msg, want)
+		}
+	}
+	// A different constraint violation keeps the generic wording.
+	if _, msg := friendlyError(ldap.NewError(ldap.LDAPResultConstraintViolation, errors.New("something else"))); strings.Contains(msg, "password rules") {
+		t.Errorf("unrelated violations shouldn't claim to be about passwords: %q", msg)
 	}
 }

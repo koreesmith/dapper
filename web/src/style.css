@@ -199,3 +199,6 @@ ol.plainlist { list-style: decimal; }
 .version { text-align: center; color: var(--muted); font-size: 12px; padding: 6px; }
 
 tr.bad td { color: var(--danger); }
+
+.rules { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; }
+.rules ul { margin: 4px 0 0; padding-left: 18px; list-style: disc; }

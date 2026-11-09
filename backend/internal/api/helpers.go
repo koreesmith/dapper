@@ -86,6 +86,9 @@ func friendlyError(err error) (int, string) {
 	case ldap.LDAPResultNoSuchObject:
 		return http.StatusNotFound, "That item no longer exists. It may have been removed by someone else."
 	case ldap.LDAPResultConstraintViolation:
+		if m := passwordRuleMessage(le); m != "" {
+			return http.StatusBadRequest, m
+		}
 		if low := strings.ToLower(le.Error()); strings.Contains(low, "non-unique") || strings.Contains(low, "not unique") {
 			return http.StatusConflict, "Another account already uses one of those values (for example the same username or email), and the directory requires them to be unique."
 		}
@@ -294,4 +297,25 @@ func escapeRDN(v string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// passwordRuleMessage turns the directory's password-policy complaints into something a person can act on.
+func passwordRuleMessage(le *ldap.Error) string {
+	if le.Err == nil {
+		return ""
+	}
+	low := strings.ToLower(le.Err.Error())
+	switch {
+	case strings.Contains(low, "history"):
+		return "You've used that password before. Choose one you haven't used recently."
+	case strings.Contains(low, "too young") || strings.Contains(low, "too soon"):
+		return "You changed your password too recently. Wait a little before changing it again."
+	case strings.Contains(low, "too short"):
+		return "That password is too short for your organization's password rules."
+	case strings.Contains(low, "quality"):
+		return "That password doesn't meet your organization's password rules (it's probably too short or too simple). The rules are listed above the form."
+	case strings.Contains(low, "locked"):
+		return "This account is locked. Ask an administrator to unlock it."
+	}
+	return ""
 }

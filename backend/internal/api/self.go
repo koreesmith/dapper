@@ -102,15 +102,27 @@ func (s *Server) changeOwnPassword(w http.ResponseWriter, r *http.Request, sess 
 		return
 	}
 	err = probe.Bind(sess.DN, in.Current)
-	probe.Close()
 	if err != nil {
+		probe.Close()
 		s.limit.fail(key)
 		fail(w, http.StatusBadRequest, "Your current password is incorrect.")
 		return
 	}
 	s.limit.reset(key)
-	if !s.withSvc(w, func(c *ldapclient.Client) error { return c.SetPassword(sess.DN, in.New) }) {
-		return
+	// Change it as the person themselves, so the directory's own password rules (length, history, ...)
+	// apply. They'd be skipped if the service account did it, because it's usually the directory manager.
+	changeErr := probe.ChangePassword(sess.DN, in.Current, in.New)
+	probe.Close()
+	if changeErr != nil {
+		if !ldapclient.IsCode(changeErr, ldapclient.CodeInsufficientAccess) {
+			failLDAP(w, changeErr)
+			return
+		}
+		// The directory doesn't let people change their own password directly: fall back to the
+		// service account (Dapper's own minimum length still applies).
+		if !s.withSvc(w, func(c *ldapclient.Client) error { return c.SetPassword(sess.DN, in.New) }) {
+			return
+		}
 	}
 	s.sessions.RevokeFor(sess.DN, sess.ID) // other devices must sign in again; this one carries on
 	audit(sess, "password.change", sess.DN)

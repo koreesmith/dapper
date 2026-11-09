@@ -66,6 +66,8 @@ jobs:
         run: ./scripts/e2e-gid.sh
       - name: Security regression tests
         run: ./scripts/e2e-security.sh
+      - name: Password rule tests
+        run: ./scripts/e2e-password.sh
       - name: Server feature (overlay) tests
         run: ./scripts/e2e-overlays.sh
       - name: Paging tests against the live directory

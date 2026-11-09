@@ -70,6 +70,10 @@ type Admin struct {
 
 type Password struct {
 	MinLength int `yaml:"minLength"`
+	// PolicyDN is the directory's password policy entry (ppolicy). Dapper reads it to tell people the
+	// rules and when their password expires. It is filled in when password rules are turned on from the
+	// Server page; leave empty if the directory has no password policy.
+	PolicyDN string `yaml:"policyDN"`
 }
 
 // Unix controls Linux/Unix login support: new accounts get posixAccount attributes

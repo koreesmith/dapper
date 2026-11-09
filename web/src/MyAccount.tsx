@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Me, Profile } from "./api";
+import { api, Me, PasswordPolicy, Profile } from "./api";
 import { changedAttrs, FieldEditor, FormState, initialValues, Notice, StrengthMeter } from "./ui";
 
 export function MyAccount({ me }: { me: Me }) {
@@ -49,20 +49,24 @@ export function MyAccount({ me }: { me: Me }) {
         </div>
       )}
 
-      <PasswordCard minLen={me.features.passwordMinLength} />
+      <PasswordCard fallbackMin={me.features.passwordMinLength} />
     </div>
   );
 }
 
-function PasswordCard({ minLen }: { minLen: number }) {
+function PasswordCard({ fallbackMin }: { fallbackMin: number }) {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [policy, setPolicy] = useState<PasswordPolicy | null>(null);
+  useEffect(() => { api.passwordPolicy().then(setPolicy).catch(() => {}); }, []);
 
+  const minLen = policy?.minLength ?? fallbackMin;
   const mismatch = again !== "" && next !== again;
   const ok = cur !== "" && next.length >= minLen && next === again;
+  const left = policy?.daysLeft;
 
   return (
     <form className="panel" onSubmit={async (e) => {
@@ -71,13 +75,28 @@ function PasswordCard({ minLen }: { minLen: number }) {
         await api.changePassword(cur, next);
         setMsg({ kind: "ok", text: "Your password was changed." });
         setCur(""); setNext(""); setAgain("");
+        api.passwordPolicy().then(setPolicy).catch(() => {});
       } catch (x) { setMsg({ kind: "error", text: (x as Error).message }); } finally { setBusy(false); }
     }}>
       <h3>Change my password</h3>
+      {left !== undefined && left <= 14 && (
+        <Notice kind="warn">{left < 0
+          ? `Your password expired ${-left} day${left === -1 ? "" : "s"} ago. Change it now.`
+          : left === 0 ? "Your password expires today. Change it now."
+          : `Your password expires in ${left} day${left === 1 ? "" : "s"} (${new Date(policy!.expiresOn!).toLocaleDateString()}).`}</Notice>
+      )}
+      <div className="rules" aria-label="Password rules">
+        <strong>Password rules</strong>
+        <ul>
+          <li>At least {minLen} characters. A longer phrase is stronger than a short complicated one.</li>
+          {policy?.history ? <li>Not one of your last {policy.history} passwords.</li> : null}
+          {policy?.maxAgeDays ? <li>Expires after {policy.maxAgeDays} days{policy.expiresOn && left !== undefined && left > 14 ? `; yours expires on ${new Date(policy.expiresOn).toLocaleDateString()}` : ""}.</li> : null}
+          {policy?.lockout ? <li>The account locks after {policy.maxFailures} wrong passwords{policy.lockoutMinutes ? ` for ${policy.lockoutMinutes} minutes` : " until an administrator unlocks it"}.</li> : null}
+        </ul>
+      </div>
       <label>Current password<input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></label>
       <label>New password
         <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-        <span className="sub">At least {minLen} characters. A longer phrase is stronger than a short complicated one.</span>
       </label>
       <StrengthMeter password={next} />
       <label>Type the new password again

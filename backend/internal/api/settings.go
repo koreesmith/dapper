@@ -41,7 +41,8 @@ type settingsIO struct {
 		GroupDN string `json:"groupDN"`
 	} `json:"admin"`
 	Password struct {
-		MinLength int `json:"minLength"`
+		MinLength int    `json:"minLength"`
+		PolicyDN  string `json:"policyDN"`
 	} `json:"password"`
 	Session struct {
 		IdleMinutes int `json:"idleMinutes"`
@@ -66,7 +67,7 @@ func toIO(c *config.Config) settingsIO {
 	o.Users.ObjectClasses, o.Users.RDNAttribute = c.Users.ObjectClasses, c.Users.RDNAttribute
 	o.Groups.BaseDN, o.Groups.ObjectClass, o.Groups.MemberAttribute = c.Groups.BaseDN, c.Groups.ObjectClass, c.Groups.MemberAttribute
 	o.Admin.GroupDN = c.Admin.GroupDN
-	o.Password.MinLength = c.Password.MinLength
+	o.Password.MinLength, o.Password.PolicyDN = c.Password.MinLength, c.Password.PolicyDN
 	o.Session.IdleMinutes, o.Session.MaxHours = int(c.Session.IdleTimeout/time.Minute), int(c.Session.MaxAge/time.Hour)
 	o.Unix.Enabled, o.Unix.UIDMin, o.Unix.UIDMax = c.Unix.Enabled, c.Unix.UIDMin, c.Unix.UIDMax
 	o.Unix.HomePattern, o.Unix.DefaultShell, o.Unix.Shadow, o.Unix.SSHKeys = c.Unix.HomePattern, c.Unix.DefaultShell, c.Unix.Shadow, c.Unix.SSHKeys
@@ -94,7 +95,7 @@ func applyIO(base config.Settings, o settingsIO) config.Settings {
 	s.Groups.BaseDN, s.Groups.ObjectClass = strings.TrimSpace(o.Groups.BaseDN), strings.TrimSpace(o.Groups.ObjectClass)
 	s.Groups.MemberAttribute = strings.TrimSpace(o.Groups.MemberAttribute)
 	s.Admin.GroupDN = strings.TrimSpace(o.Admin.GroupDN)
-	s.Password.MinLength = o.Password.MinLength
+	s.Password.MinLength, s.Password.PolicyDN = o.Password.MinLength, strings.TrimSpace(o.Password.PolicyDN)
 	s.Session.IdleTimeout, s.Session.MaxAge = time.Duration(o.Session.IdleMinutes)*time.Minute, time.Duration(o.Session.MaxHours)*time.Hour
 	s.Unix = config.Unix{
 		Enabled: o.Unix.Enabled, UIDMin: o.Unix.UIDMin, UIDMax: o.Unix.UIDMax,

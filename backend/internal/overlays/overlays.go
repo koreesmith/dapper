@@ -582,6 +582,7 @@ func policyOps(ctx Context, def Def, vals map[string]string, p *Plan, facts Fact
 	pol := map[string][]string{
 		"pwdAttribute":       {"2.5.4.35"}, // userPassword, by OID: some servers reject the name
 		"pwdMinLength":       {strconv.Itoa(n["minLength"])},
+		"pwdCheckQuality":    {"1"}, // without this the server ignores the minimum length entirely
 		"pwdLockout":         {strings.ToUpper(boolStr(lockout))},
 		"pwdMustChange":      {strings.ToUpper(boolStr(mustChange))},
 		"pwdAllowUserChange": {"TRUE"},
@@ -601,7 +602,7 @@ func policyOps(ctx Context, def Def, vals map[string]string, p *Plan, facts Fact
 	}
 	if facts.PolicyExists {
 		var mods []Mod
-		for _, a := range []string{"pwdAttribute", "pwdMinLength", "pwdLockout", "pwdMustChange", "pwdAllowUserChange", "pwdSafeModify",
+		for _, a := range []string{"pwdAttribute", "pwdMinLength", "pwdCheckQuality", "pwdLockout", "pwdMustChange", "pwdAllowUserChange", "pwdSafeModify",
 			"pwdMaxAge", "pwdExpireWarning", "pwdInHistory", "pwdMaxFailure", "pwdLockoutDuration", "pwdFailureCountInterval"} {
 			if v, ok := pol[a]; ok {
 				mods = append(mods, Mod{Op: "replace", Attr: a, Values: v})

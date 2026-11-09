@@ -541,3 +541,10 @@ func IsSecretAttr(name string) bool {
 	}
 	return strings.Contains(n, "password") || strings.Contains(n, "passwd") || strings.HasSuffix(n, "pwd")
 }
+
+// ChangePassword changes dn's own password, giving the old one. The connection should be bound as dn, so
+// the directory's password rules (length, history, ...) are applied; they're skipped for the manager.
+func (c *Client) ChangePassword(dn, oldPassword, newPassword string) error {
+	_, err := c.conn.PasswordModify(&ldap.PasswordModifyRequest{UserIdentity: dn, OldPassword: oldPassword, NewPassword: newPassword})
+	return err
+}

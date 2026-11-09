@@ -68,6 +68,10 @@ export interface GIDFix { label: string; kind: "groupGID" | "personGID" | "creat
 export interface GIDIssue { kind: string; title: string; detail: string; fixes: GIDFix[] }
 export interface ActivityEvent { time: string; actor: string; action: string; target?: string; detail?: Record<string, string> }
 export interface ActivityPage { events: ActivityEvent[]; total: number; page: number; pageSize: number }
+export interface PasswordPolicy {
+  minLength: number; enforced: boolean; history?: number; maxAgeDays?: number; lockout?: boolean; maxFailures?: number;
+  lockoutMinutes: number; expiresOn?: string; daysLeft?: number;
+}
 export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
@@ -109,6 +113,7 @@ export const api = {
   // self-service
   profile: () => req<Profile>("/api/me/profile"),
   updateProfile: (attrs: Attrs) => req<{ changed: number }>("/api/me/profile", json("PATCH", { attrs })),
+  passwordPolicy: () => req<PasswordPolicy>("/api/me/password-policy"),
   changePassword: (current: string, next: string) => req("/api/me/password", json("POST", { current, new: next })),
 
   // people
