@@ -11,6 +11,8 @@ before anything changes, and nothing happens until you approve it.
 | **Password rules and lockout (ppolicy)** | Minimum length, expiry, history, lockout after wrong passwords | Real password security for every application using the directory |
 | **Prevent duplicates (unique)** | Refuses a second person with the same username, email or user ID | Duplicate user IDs cause confusing problems on Linux systems |
 | **Change log (auditlog)** | Writes every change to a file on the directory server | Security reviews and "what just changed?" |
+| **Last sign-in (lastbind)** | Records when each person last signed in | Finding accounts nobody uses. A contributed extra: your server package may not include it |
+| **Allow copying (syncprov)** | Lets other servers keep a copy of this one | The first step of replication |
 
 ## Unlocking
 
@@ -75,4 +77,28 @@ LDIF and the command to run on the server yourself.
   contrib add-on). If the server can't load one, Dapper shows the server's own message.
 - **Backups** of the affected configuration are written to `<dataDir>/backups/` before every change and can be downloaded
   from the confirmation message.
-- **Not included yet:** `lastbind`, `syncprov` (replication) and `dynlist` (dynamic groups).
+- **Not included yet:** `dynlist` (dynamic groups).
+- **`lastbind` and `syncprov` can't be switched off** while the server runs, like memberOf, and Dapper says so.
+
+## Other server settings
+
+Once unlocked, the Server page also shows and manages these. Every change is previewed as LDIF, backed up to
+`<dataDir>/backups/` first, and needs your approval, like the overlays above.
+
+- **Schemas.** Lists what the server has loaded. If your server doesn't understand SSH public keys, *Add SSH key
+  support* adds the standard OpenSSH `openssh-lpk` schema (needed for the SSH keys option under Linux accounts).
+  Schemas can't be removed while the server runs.
+- **Search speed (indexes).** Shows the indexes and lets you add one (exact, contains, exists, sounds-like) or remove
+  one. The indexes the server needs itself (`objectClass`, `entryCSN`, `entryUUID`) can't be removed here. Adding an index
+  to a directory that already has data may not cover existing entries until the server re-indexes (`slapindex`, with the
+  server stopped), so check a search afterwards.
+- **Access rules.** Shows who may read and change what, and lets you replace the rules. Dapper checks each rule's shape and
+  warns when the set looks like it could lock people out (no rule for sign-ins, nothing about `userPassword`, or the
+  service account not named and not the root account). It cannot judge whether the rules are *right*: a wrong rule set can
+  need fixing on the server itself, so read the preview carefully.
+- **Encryption (TLS).** Connects the way Dapper does and shows the certificate the server really presents (name, issuer,
+  expiry, whether it is self-signed or expired). You can change the certificate, key and authority file paths; the files
+  must already exist on the directory server and be readable by it. Depending on your version the server may need a
+  restart before it uses new files.
+- **Replication.** Read-only: whether this server provides or copies data, the server ID, and the `contextCSN` values to
+  compare between servers. Replication credentials are never shown or written to backups.

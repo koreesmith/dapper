@@ -28,6 +28,12 @@ out there.
 - **Large directories.** The People list loads up to 5,000 accounts per search and filters them in memory; the
   list warns you if your directory is bigger. Searches use paged results, so the server's own search size limit
   (500 by default on OpenLDAP) does not cut results short.
+- **Units.** Only the people container and the units inside it are managed. A unit can be renamed or removed only while
+  it is empty, because OpenLDAP can't rename a unit that has entries in it. Moving someone changes their name in the
+  directory; Dapper updates their group memberships and ends their sessions, but other systems that store the old name
+  need updating.
+- **Pictures** are stored in `jpegPhoto`, re-encoded as JPEG, and limited to 2 MB (the browser shrinks them first).
+  Whether people can change their own is controlled on the Settings page like any other detail.
 - **Time.** Session timeouts and password expiry dates depend on the clock; keep the host's time correct.
 - **Logs.** `docker compose logs dapper` shows startup, sign-in problems and every administrative action
   (`audit` lines). The same actions appear on the **Activity** page.
