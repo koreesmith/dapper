@@ -26,6 +26,8 @@ olcModuleLoad: unique
 olcModuleLoad: auditlog
 olcModuleLoad: lastbind
 olcModuleLoad: syncprov
+# Password schemes: Argon2 for new passwords; older hashes such as {SSHA} still verify.
+olcModuleLoad: argon2
 
 dn: cn=schema,cn=config
 objectClass: olcSchemaConfig
@@ -43,6 +45,8 @@ objectClass: olcDatabaseConfig
 objectClass: olcFrontendConfig
 olcDatabase: {-1}frontend
 olcSecurity: ssf=128
+# New and changed passwords are stored as Argon2. Existing hashes keep working until the person changes theirs.
+olcPasswordHash: {ARGON2}
 
 dn: olcDatabase={0}config,cn=config
 objectClass: olcDatabaseConfig

@@ -65,6 +65,25 @@ o: Test
 EOF')
 has "a directory can be added and filled" "$ADD" "adding new entry"
 
+# Passwords: new ones are Argon2, and a hash made elsewhere ({SSHA}, as a migrated directory has) still signs in.
+cl 'SSHA=$(slappasswd -h {SSHA} -s oldsecret)
+ldapadd -x -ZZ -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw <<EOF
+dn: cn=old,dc=test,dc=lan
+objectClass: person
+cn: old
+sn: Old
+userPassword: $SSHA
+
+dn: cn=new,dc=test,dc=lan
+objectClass: person
+cn: new
+sn: New
+EOF
+ldappasswd -x -ZZ -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw -s newsecret cn=new,dc=test,dc=lan' >/dev/null
+has "a new password is stored as Argon2 (base64 of {ARGON2})" "$(cl 'ldapsearch -x -ZZ -LLL -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw -b cn=new,dc=test,dc=lan userPassword')" "e0FSR09OMn0"
+has "the Argon2 password signs in" "$(cl 'ldapwhoami -x -ZZ -H ldap://ldap.test -D cn=new,dc=test,dc=lan -w newsecret')" "cn=new,dc=test,dc=lan"
+has "an old {SSHA} password still signs in" "$(cl 'ldapwhoami -x -ZZ -H ldap://ldap.test -D cn=old,dc=test,dc=lan -w oldsecret')" "cn=old,dc=test,dc=lan"
+
 CERT1=$(docker run --rm -v "$P-t":/t:ro --entrypoint sh "$IMG" -c 'sha256sum /t/tls.crt')
 HAND1=$(docker run --rm -v "$P-h":/h:ro --entrypoint sh "$IMG" -c 'sha256sum /h/bootstrap.json')
 docker restart "$SRV" >/dev/null
