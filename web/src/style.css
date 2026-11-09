@@ -213,3 +213,6 @@ th.check, td.check { width: 32px; padding-right: 0 !important; }
 .photo-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 .avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; flex: none; }
 .avatar.blank { display: grid; place-items: center; font-size: 2rem; background: var(--border); color: var(--text); }
+
+.savebar { position: sticky; bottom: 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-top: 2px solid var(--primary); margin-top: 12px; }
+.savebar span { flex: 1; min-width: 12rem; }

@@ -53,7 +53,7 @@ export function Settings() {
     <div className="page narrow">
       <h2>Settings</h2>
 
-      <form className="panel" onSubmit={save}>
+      <form className="panel" id="conn-form" onSubmit={save}>
         <h3>Directory connection</h3>
         <ConnectionFields s={s} patch={patch} locked={locked} />
         <h3>Where things live</h3>
@@ -76,6 +76,14 @@ export function Settings() {
         <p className="sub">Settings are tested before they're saved, and a change that would lock you out of the admin screens is refused.</p>
       </form>
 
+      {dirty && (
+        <div className="savebar" role="region" aria-label="Unsaved changes">
+          <span>You have unsaved changes to the settings above.</span>
+          <button className="primary" form="conn-form" disabled={busy}>{busy ? "Working…" : "Save settings"}</button>
+          <button type="button" onClick={() => { setS(saved); setMsg(null); }}>Discard</button>
+        </div>
+      )}
+
       {toCreate && (
         <Modal title="Create this container?" onClose={() => setToCreate(null)}>
           <p>Dapper will add an empty container named <strong>{toCreate}</strong> to your directory. Nothing else changes.</p>
@@ -95,6 +103,7 @@ export function Settings() {
         catch (x) { setFmsg({ kind: "error", text: (x as Error).message }); } finally { setBusy(false); }
       }}>
         <h3>What people can see and change about themselves</h3>
+        <p className="sub">This table has its own save button (below it), separate from the settings above.</p>
         <p className="sub">Administrators can always see and edit everything. These switches control the “My account” page for everyone else.</p>
         <table className="users">
           <thead><tr><th>Detail</th><th>Can see</th><th>Can change</th></tr></thead>
@@ -111,7 +120,7 @@ export function Settings() {
           </tbody>
         </table>
         <div className="formactions">
-          <button className="primary" disabled={!fdirty || busy}>Save</button>
+          <button className="primary" disabled={!fdirty || busy}>Save these choices</button>
           {fdirty && <button type="button" onClick={() => setFields(savedFields)}>Discard</button>}
         </div>
         {fmsg && <Notice kind={fmsg.kind}>{fmsg.text}</Notice>}

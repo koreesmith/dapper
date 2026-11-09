@@ -262,7 +262,17 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request, sess *sessi
 		return
 	}
 	if m := cfg.Missing(); len(m) > 0 {
-		fail(w, http.StatusBadRequest, "Please fill in all the required settings.")
+		names := map[string]string{"ldap.url": "the server address", "ldap.bindDN": "the service account name", "ldap.bindPassword": "the service account password",
+			"users.baseDN": "where people live", "admin.groupDN": "the administrators group"}
+		var what []string
+		for _, k := range m {
+			what = append(what, names[k])
+		}
+		msg := "Please fill in " + strings.Join(what, ", ") + "."
+		if len(m) == 1 && m[0] == "ldap.bindPassword" {
+			msg = "Please enter the service account password again. Dapper forgets the saved one whenever the server address, encryption options or service account name change, so it can never be sent to a different server."
+		}
+		fail(w, http.StatusBadRequest, msg)
 		return
 	}
 	checks, c := s.runChecks(cfg)
