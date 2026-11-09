@@ -5,13 +5,14 @@ import { KIND_LABEL } from "./Groups";
 import { changedAttrs, FieldEditor, FormState, initialValues, Modal, Notice, SecretBox } from "./ui";
 import { go, href } from "./router";
 import { PhotoPanel } from "./Photo";
+import { ChangePrimaryGroup } from "./GroupIDs";
 
 export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
   const [p, setP] = useState<Person | null>(null);
   const [form, setForm] = useState<FormState>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [dialog, setDialog] = useState<"reset" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"reset" | "delete" | "primary" | null>(null);
   const [allGroups, setAllGroups] = useState<GroupSummary[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [pv, setPv] = useState(0);
@@ -46,6 +47,8 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
     } catch (x) { setMsg({ kind: "error", text: (x as Error).message }); }
   };
 
+  const gidField = p.fields.find((f) => f.attr === "gidNumber");
+  const primaryName = p.groups.find((g) => g.primary)?.name;
   const memberOf = new Set(p.groups.map((g) => g.dn.toLowerCase()));
   const addable = allGroups.filter((g) => !memberOf.has(g.dn.toLowerCase()));
 
@@ -96,6 +99,14 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
         </div>
       )}
 
+      {gidField && gidField.values[0] && (
+        <div className="panel">
+          <h3>Linux primary group</h3>
+          <p className="sub">Group ID {gidField.values[0]}{primaryName ? <> — <strong>{primaryName}</strong></> : null}. New files this person creates on your servers belong to this group.</p>
+          <button type="button" onClick={() => setDialog("primary")}>Change primary group…</button>
+        </div>
+      )}
+
       {me.features.groups && (
         <div className="panel">
           <h3>Groups</h3>
@@ -127,6 +138,10 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
         </div>
       )}
 
+      {dialog === "primary" && gidField && (
+        <ChangePrimaryGroup dn={p.dn} name={p.name} current={gidField.values[0] ?? ""} onClose={() => setDialog(null)}
+          onDone={(m) => { setDialog(null); setMsg({ kind: "ok", text: m }); load(); }} />
+      )}
       {dialog === "reset" && <ResetDialog p={p} minLen={me.features.passwordMinLength} onClose={() => setDialog(null)} />}
       {dialog === "delete" && <DeleteDialog p={p} onClose={() => setDialog(null)} />}
     </div>

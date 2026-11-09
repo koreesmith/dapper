@@ -156,3 +156,54 @@ export function GroupChecker() {
     </div>
   );
 }
+
+/** Choose which group is a person's primary Linux group, previewing the change before it is made. */
+export function ChangePrimaryGroup({ dn, name, current, onClose, onDone }: { dn: string; name: string; current: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const [groups, setGroups] = useState<{ dn: string; name: string; gid: string }[]>([]);
+  const [gid, setGid] = useState("");
+  const [prev, setPrev] = useState<PersonGIDPreview | null>(null);
+  const [approved, setApproved] = useState(false);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    Promise.all([api.groups({ kind: "linux", pageSize: 500 }), api.groups({ kind: "personal", pageSize: 500 })])
+      .then(([a, b]) => setGroups([...a.groups, ...b.groups].filter((g) => g.gid).map((g) => ({ dn: g.dn, name: g.name, gid: g.gid! }))
+        .sort((x, y) => x.name.localeCompare(y.name))))
+      .catch((x) => setErr((x as Error).message));
+  }, []);
+
+  const choose = async (value: string) => {
+    setGid(value); setPrev(null); setApproved(false); setErr("");
+    if (!value) return;
+    try { setPrev(await api.personGID(dn, value)); } catch (x) { setErr((x as Error).message); }
+  };
+
+  return (
+    <Modal title={`Change ${name}'s primary group`} onClose={onClose}>
+      <p className="sub">Their primary group is the one new files on a Linux server belong to. Right now it is group ID {current}.</p>
+      <label>New primary group
+        <select value={gid} onChange={(e) => choose(e.target.value)} autoFocus>
+          <option value="">Choose a group…</option>
+          {groups.filter((g) => g.gid !== current).map((g) => <option key={g.dn} value={g.gid}>{g.name} ({g.gid})</option>)}
+        </select>
+      </label>
+      {prev && (
+        <>
+          <p>{prev.person}'s primary group changes from {prev.old} to {prev.new}, the group “{prev.group}”.</p>
+          {prev.warnings.map((w) => <Notice key={w} kind="warn">{w}</Notice>)}
+          <label className="inline"><input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} /> I understand, make this change</label>
+        </>
+      )}
+      {err && <Notice kind="error">{err}</Notice>}
+      <div className="formactions">
+        <button className="primary" disabled={!prev || !approved || busy} onClick={async () => {
+          setBusy(true); setErr("");
+          try { await api.personGID(dn, gid, true); onDone(`${name}'s primary group is now “${prev!.group}”.`); }
+          catch (x) { setErr((x as Error).message); setBusy(false); }
+        }}>Change primary group</button>
+        <button onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
+  );
+}
