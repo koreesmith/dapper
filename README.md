@@ -23,6 +23,31 @@ manage users **without knowing LDAP**. The first release targets **OpenLDAP**.
 Light, Dark and Sepia themes. Everything is built to work with your existing server: nothing
 is installed into the directory and Dapper keeps no user database of its own.
 
+## Quickstart
+
+You need Docker. Five minutes, no LDAP knowledge required.
+
+1. **Get Dapper and start it** (this starts only Dapper, never an LDAP server):
+   ```sh
+   git clone https://github.com/koreesmith/dapper && cd dapper
+   docker compose up -d --build
+   ```
+   Port 8080 taken? Copy `.env.example` to `.env` and set `DAPPER_PORT=8585`.
+2. **Read the setup code** Dapper prints on first start:
+   ```sh
+   docker compose logs dapper | grep -i "setup code"
+   ```
+3. **Open <http://localhost:8080>** and follow the setup wizard: enter the setup code, your LDAP server's address
+   (for example `ldap://ldap.example.com:389`), a service account and its password
+   ([what access it needs](docs/service-account.md)), and where your people and groups live. The wizard finds
+   existing containers, groups and people, and asks before creating anything.
+4. **Sign in** with your directory username and password. Administrators land on the People list.
+5. **Next steps:** add a person, create a group, and visit **Server** to switch on features such as memberOf
+   (needs the server's configuration login, see [docs/server-features.md](docs/server-features.md)).
+
+Put Dapper behind an HTTPS reverse proxy for real use ([docs/production.md](docs/production.md)).
+Just want to look around? See "Just want to look around?" below for a throwaway demo server.
+
 ## Getting started
 
 Needs Docker. This starts **only Dapper**; it never starts or installs an LDAP server for you.
