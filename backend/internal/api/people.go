@@ -52,6 +52,10 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ *session.Se
 		return
 	}
 	q := r.URL.Query()
+	if q.Get("format") == "csv" { // everyone who matches, not just one page
+		writeUsersCSV(w, users.Filtered(all, users.Query{Search: q.Get("q"), Sort: q.Get("sort"), Desc: q.Get("dir") == "desc", Status: q.Get("status")}))
+		return
+	}
 	page, _ := strconv.Atoi(q.Get("page"))
 	size, _ := strconv.Atoi(q.Get("pageSize"))
 	res := users.List(all, users.Query{
@@ -315,6 +319,81 @@ func (s *Server) addPerson(c *ldapclient.Client, cfg *config.Config, username st
 	return dn, nil
 }
 
+// newPerson is everything needed to create an account.
+type newPerson struct {
+	Username string
+	Attrs    map[string][]string
+	Password string   // empty: generate a temporary one
+	Groups   []string // DNs of groups to join
+}
+
+type createdPerson struct {
+	DN           string
+	Username     string
+	TempPassword string // only when Dapper generated it
+}
+
+// validatePerson checks a request without touching the directory, so a bad row is reported before anything is created.
+func (s *Server) validatePerson(cfg *config.Config, in newPerson) (string, map[string][]string, error) {
+	username := strings.ToLower(strings.TrimSpace(in.Username))
+	attrs, err := s.personAttrs(cfg, username, in.Attrs)
+	if err != nil {
+		return "", nil, err
+	}
+	if in.Password != "" {
+		if err := s.checkPassword(in.Password); err != nil {
+			return "", nil, err
+		}
+	}
+	for _, g := range in.Groups {
+		if _, err := s.groupDN(g); err != nil {
+			return "", nil, err
+		}
+	}
+	return username, attrs, nil
+}
+
+// createPerson makes an account: the entry, its password, the private Linux group, and any group memberships.
+// If a later step fails the account is removed again, so nothing is left half-made.
+func (s *Server) createPerson(c *ldapclient.Client, cfg *config.Config, in newPerson) (*createdPerson, error) {
+	username, attrs, err := s.validatePerson(cfg, in)
+	if err != nil {
+		return nil, err
+	}
+	password, generated := in.Password, false
+	if password == "" {
+		password, generated = generatePassword(14), true
+	}
+	gid := 0
+	if cfg.Unix.Enabled {
+		unixMu.Lock() // keep "pick a free number" and "use it" together
+		defer unixMu.Unlock()
+		if gid, err = s.prepareUnix(c, cfg, username, attrs, first(in.Attrs["uidNumber"])); err != nil {
+			return nil, err
+		}
+	}
+	dn, err := s.addPerson(c, cfg, username, attrs, password)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Unix.Enabled {
+		if err := addPrivateGroup(c, cfg, username, gid); err != nil {
+			_ = c.Delete(dn) // no half-made account
+			return nil, err
+		}
+	}
+	for _, g := range in.Groups {
+		if err := s.addMember(c, g, dn); err != nil {
+			return nil, err
+		}
+	}
+	out := &createdPerson{DN: dn, Username: username}
+	if generated {
+		out.TempPassword = password
+	}
+	return out, nil
+}
+
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *session.Session) {
 	var in struct {
 		Username string              `json:"username"`
@@ -327,59 +406,17 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		return
 	}
 	cfg := s.c()
-	username := strings.ToLower(strings.TrimSpace(in.Username))
-	attrs, err := s.personAttrs(cfg, username, in.Attrs)
-	if err != nil {
-		failLDAP(w, err)
+	var made *createdPerson
+	if !s.withSvc(w, func(c *ldapclient.Client) (err error) {
+		made, err = s.createPerson(c, cfg, newPerson{Username: in.Username, Attrs: in.Attrs, Password: in.Password, Groups: in.Groups})
 		return
-	}
-	password, generated := in.Password, false
-	if password == "" {
-		password, generated = generatePassword(14), true
-	} else if err := s.checkPassword(password); err != nil {
-		failLDAP(w, err)
-		return
-	}
-	for _, g := range in.Groups {
-		if _, err := s.groupDN(g); err != nil {
-			failLDAP(w, err)
-			return
-		}
-	}
-
-	var dn string
-	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		var err error
-		gid := 0
-		if cfg.Unix.Enabled {
-			unixMu.Lock() // keep "pick a free number" and "use it" together
-			defer unixMu.Unlock()
-			if gid, err = s.prepareUnix(c, cfg, username, attrs, first(in.Attrs["uidNumber"])); err != nil {
-				return err
-			}
-		}
-		if dn, err = s.addPerson(c, cfg, username, attrs, password); err != nil {
-			return err
-		}
-		if cfg.Unix.Enabled {
-			if err := addPrivateGroup(c, cfg, username, gid); err != nil {
-				_ = c.Delete(dn) // no half-made account
-				return err
-			}
-		}
-		for _, g := range in.Groups {
-			if err := s.addMember(c, g, dn); err != nil {
-				return err
-			}
-		}
-		return nil
 	}) {
 		return
 	}
-	audit(sess, "user.create", dn)
-	resp := map[string]any{"dn": dn, "username": username}
-	if generated {
-		resp["temporaryPassword"] = password
+	audit(sess, "user.create", made.DN)
+	resp := map[string]any{"dn": made.DN, "username": made.Username}
+	if made.TempPassword != "" {
+		resp["temporaryPassword"] = made.TempPassword
 	}
 	writeJSON(w, resp)
 }
@@ -397,6 +434,66 @@ func rdnOf(dn string) string {
 	return dn
 }
 
+// suspendPerson suspends or restores an account and returns its (possibly new) DN. It can't be used on
+// the person making the change.
+func (s *Server) suspendPerson(c *ldapclient.Client, sess *session.Session, dn string, suspend bool) (string, error) {
+	if suspend && strings.EqualFold(dn, sess.DN) {
+		return dn, validationError("You can't suspend your own account.")
+	}
+	newDN := dn
+	err := func() error {
+		if s.c().Users.SuspendedBaseDN != "" {
+			target := s.c().Users.SuspendedBaseDN
+			if !suspend {
+				target = s.c().Users.BaseDN
+			}
+			if s.isSuspendedDN(dn) == suspend {
+				if !suspend {
+					// Not suspended, but the password policy may have locked it after too many wrong
+					// passwords: restoring clears that too.
+					err := c.Modify(dn, []ldapclient.Change{{Op: "delete", Attr: "pwdAccountLockedTime"}})
+					if ldapclient.IsCode(err, ldapclient.CodeNoSuchAttribute) || ldapclient.IsCode(err, ldapclient.CodeUndefinedAttribute) {
+						return nil
+					}
+					return err
+				}
+				return nil // already suspended
+			}
+			if err := c.Move(dn, rdnOf(dn), target); err != nil {
+				return err
+			}
+			newDN = rdnOf(dn) + "," + target
+			return s.replaceInGroups(c, dn, newDN)
+		}
+		// ppolicy mode: lock or unlock in place.
+		ch := ldapclient.Change{Op: "delete", Attr: "pwdAccountLockedTime"}
+		if suspend {
+			ch = ldapclient.Change{Op: "replace", Attr: "pwdAccountLockedTime", Values: []string{"000001010000Z"}}
+		}
+		err := c.Modify(dn, []ldapclient.Change{ch})
+		if !suspend && ldapclient.IsCode(err, ldapclient.CodeNoSuchAttribute) {
+			return nil // wasn't locked
+		}
+		if ldapclient.IsCode(err, ldapclient.CodeUndefinedAttribute) || ldapclient.IsCode(err, ldapclient.CodeObjectClassViolation) {
+			return validationError("This directory can't lock accounts in place (the ppolicy overlay isn't enabled). Ask your administrator to set users.suspendedBaseDN so suspended accounts can be moved aside instead.")
+		}
+		return err
+	}()
+	if err != nil {
+		return dn, err
+	}
+	if suspend { // a suspended person must not carry on with a session they already had
+		s.sessions.RevokeFor(dn, "")
+		s.sessions.RevokeFor(newDN, "")
+	}
+	act := "user.restore"
+	if suspend {
+		act = "user.suspend"
+	}
+	audit(sess, act, newDN)
+	return newDN, nil
+}
+
 func (s *Server) setSuspended(suspend bool) handler {
 	return func(w http.ResponseWriter, r *http.Request, sess *session.Session) {
 		dn, err := s.userDN(r.URL.Query().Get("dn"))
@@ -404,65 +501,46 @@ func (s *Server) setSuspended(suspend bool) handler {
 			failLDAP(w, err)
 			return
 		}
-		if suspend && strings.EqualFold(dn, sess.DN) {
-			fail(w, http.StatusBadRequest, "You can't suspend your own account.")
+		var newDN string
+		if !s.withSvc(w, func(c *ldapclient.Client) (err error) { newDN, err = s.suspendPerson(c, sess, dn, suspend); return }) {
 			return
 		}
-		newDN := dn
-		if !s.withSvc(w, func(c *ldapclient.Client) error {
-			if s.c().Users.SuspendedBaseDN != "" {
-				target := s.c().Users.SuspendedBaseDN
-				if !suspend {
-					target = s.c().Users.BaseDN
-				}
-				if s.isSuspendedDN(dn) == suspend {
-					if !suspend {
-						// Not suspended, but the password policy may have locked it after too many wrong
-						// passwords: restoring clears that too.
-						err := c.Modify(dn, []ldapclient.Change{{Op: "delete", Attr: "pwdAccountLockedTime"}})
-						if ldapclient.IsCode(err, ldapclient.CodeNoSuchAttribute) || ldapclient.IsCode(err, ldapclient.CodeUndefinedAttribute) {
-							return nil
-						}
-						return err
-					}
-					return nil // already suspended
-				}
-				if err := c.Move(dn, rdnOf(dn), target); err != nil {
-					return err
-				}
-				newDN = rdnOf(dn) + "," + target
-				return s.replaceInGroups(c, dn, newDN)
-			}
-			// ppolicy mode: lock or unlock in place.
-			ch := ldapclient.Change{Op: "delete", Attr: "pwdAccountLockedTime"}
-			if suspend {
-				ch = ldapclient.Change{Op: "replace", Attr: "pwdAccountLockedTime", Values: []string{"000001010000Z"}}
-			}
-			err := c.Modify(dn, []ldapclient.Change{ch})
-			if !suspend && ldapclient.IsCode(err, ldapclient.CodeNoSuchAttribute) {
-				return nil // wasn't locked
-			}
-			if ldapclient.IsCode(err, ldapclient.CodeUndefinedAttribute) || ldapclient.IsCode(err, ldapclient.CodeObjectClassViolation) {
-				return validationError("This directory can't lock accounts in place (the ppolicy overlay isn't enabled). Ask your administrator to set users.suspendedBaseDN so suspended accounts can be moved aside instead.")
-			}
-			return err
-		}) {
-			return
-		}
-		act := "user.restore"
-		if suspend {
-			act = "user.suspend"
-		}
-		if suspend { // a suspended person must not carry on with a session they already had
-			s.sessions.RevokeFor(dn, "")
-			s.sessions.RevokeFor(newDN, "")
-		}
-		audit(sess, act, newDN)
 		writeJSON(w, map[string]string{"dn": newDN})
 	}
 }
 
 // ---- delete / password ----
+
+// deletePerson removes an account, its memberships and its personal group. It can't be used on the person making the change.
+func (s *Server) deletePerson(c *ldapclient.Client, sess *session.Session, dn string) error {
+	if strings.EqualFold(dn, sess.DN) {
+		return validationError("You can't delete your own account.")
+	}
+	cfg := s.c()
+	var uid, gid string
+	if e, err := c.GetAttrs(dn, []string{"uid", "gidNumber"}); err == nil {
+		uid, gid = first(e.Values("uid")), first(e.Values("gidNumber"))
+	}
+	if err := s.replaceInGroups(c, dn, ""); err != nil {
+		return err
+	}
+	if err := c.Delete(dn); err != nil {
+		return err
+	}
+	if cfg.Groups.BaseDN != "" {
+		// Tidy Linux groups: take their username out of every group's member list, and remove
+		// their personal group (a group named after them with their id, not shared with anyone else).
+		if err := s.removeUIDFromGroups(c, uid); err != nil {
+			return err
+		}
+		if err := removePrivateGroup(c, cfg, uid, gid); err != nil {
+			return err
+		}
+	}
+	s.sessions.RevokeFor(dn, "")
+	audit(sess, "user.delete", dn)
+	return nil
+}
 
 func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, sess *session.Session) {
 	dn, err := s.userDN(r.URL.Query().Get("dn"))
@@ -470,36 +548,9 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		failLDAP(w, err)
 		return
 	}
-	if strings.EqualFold(dn, sess.DN) {
-		fail(w, http.StatusBadRequest, "You can't delete your own account.")
+	if !s.withSvc(w, func(c *ldapclient.Client) error { return s.deletePerson(c, sess, dn) }) {
 		return
 	}
-	cfg := s.c()
-	if !s.withSvc(w, func(c *ldapclient.Client) error {
-		var uid, gid string
-		if e, err := c.GetAttrs(dn, []string{"uid", "gidNumber"}); err == nil {
-			uid, gid = first(e.Values("uid")), first(e.Values("gidNumber"))
-		}
-		if err := s.replaceInGroups(c, dn, ""); err != nil {
-			return err
-		}
-		if err := c.Delete(dn); err != nil {
-			return err
-		}
-		if cfg.Groups.BaseDN == "" {
-			return nil
-		}
-		// Tidy Linux groups: take their username out of every group's member list, and remove
-		// their personal group (a group named after them with their id, not shared with anyone else).
-		if err := s.removeUIDFromGroups(c, uid); err != nil {
-			return err
-		}
-		return removePrivateGroup(c, cfg, uid, gid)
-	}) {
-		return
-	}
-	s.sessions.RevokeFor(dn, "")
-	audit(sess, "user.delete", dn)
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 

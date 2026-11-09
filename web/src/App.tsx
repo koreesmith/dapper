@@ -10,6 +10,7 @@ import { Settings } from "./Settings";
 import { Advanced } from "./Advanced";
 import { Server } from "./Server";
 import { Activity } from "./Activity";
+import { ImportPeople } from "./ImportPeople";
 import { Setup } from "./Setup";
 import { go, useRoute } from "./router";
 
@@ -89,6 +90,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   let view;
   if (!me.isAdmin && adminOnly.includes(sec)) view = null;
   else if (sec === "people" && arg(path) === "new") view = <NewPerson me={me} />;
+  else if (sec === "people" && arg(path) === "import") view = <ImportPeople />;
   else if (sec === "people") view = <UserList />;
   else if (sec === "person") view = <PersonDetail key={arg(path)} dn={arg(path)} me={me} />;
   else if (sec === "groups") view = <Groups />;

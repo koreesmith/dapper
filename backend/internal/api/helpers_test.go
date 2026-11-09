@@ -331,3 +331,64 @@ func TestPasswordRuleMessages(t *testing.T) {
 		t.Errorf("unrelated violations shouldn't claim to be about passwords: %q", msg)
 	}
 }
+
+func TestParseImport(t *testing.T) {
+	s := newTestServer(t)
+	good := "\xef\xbb\xbfFirst Name,Surname,E-mail,Cell,Dept\r\n" +
+		"Ada,Lovelace,ada@example.org,+1 555 0100,Math\r\n" +
+		"\"O'Brien, Jr\",Pat,pat@example.org,,\r\n" +
+		"Zoë,Müller,,,\r\n"
+	people, rows, err := s.parseImport(good, []string{"cn=g,ou=groups,dc=x"})
+	if err != nil || len(people) != 3 || len(rows) != 3 {
+		t.Fatalf("parse: %v %d %d", err, len(people), len(rows))
+	}
+	if people[0].Username != "ada.lovelace" || people[0].Attrs["mail"][0] != "ada@example.org" || people[0].Attrs["mobile"][0] != "+1 555 0100" || people[0].Attrs["departmentNumber"][0] != "Math" {
+		t.Errorf("row 1: %+v", people[0])
+	}
+	if people[1].Attrs["givenName"][0] != "O'Brien, Jr" || people[1].Username != "obrienjr.pat" {
+		t.Errorf("quoted comma and punctuation in names: %+v", people[1])
+	}
+	if people[2].Username != "zo.mller" {
+		t.Errorf("non-ASCII letters are dropped from the suggested username: %q", people[2].Username)
+	}
+	if rows[0].Row != 2 || rows[2].Row != 4 || len(people[0].Groups) != 1 {
+		t.Errorf("row numbers follow the file (header is row 1); groups are passed on: %+v", rows)
+	}
+	// An explicit username wins, and is lower-cased.
+	p2, _, _ := s.parseImport("username,first name,last name\nSomeone,A,B\n", nil)
+	if p2[0].Username != "someone" {
+		t.Errorf("explicit username: %q", p2[0].Username)
+	}
+	for name, bad := range map[string]string{
+		"empty":         "",
+		"header only":   "first name,last name\n",
+		"no first name": "last name,email\nX,y@z.org\n",
+		"no last name":  "first name,email\nX,y@z.org\n",
+		"not a csv":     "a,b\n\"unterminated\n",
+	} {
+		if _, _, err := s.parseImport(bad, nil); err == nil {
+			t.Errorf("%s should be rejected", name)
+		}
+	}
+	var sb strings.Builder
+	sb.WriteString("first name,last name\n")
+	for i := 0; i < maxImportRows+1; i++ {
+		sb.WriteString("A,B\n")
+	}
+	if _, _, err := s.parseImport(sb.String(), nil); err == nil {
+		t.Error("more than the row limit must be refused")
+	}
+}
+
+func TestSuggestUsernameAndCSVSafe(t *testing.T) {
+	for in, want := range map[[2]string]string{{"Ada", "Lovelace"}: "ada.lovelace", {"Jo-Ann", "O'Neil"}: "joann.oneil", {"", "Solo"}: "solo", {"X", ""}: "x"} {
+		if got := suggestUsername(in[0], in[1]); got != want {
+			t.Errorf("suggestUsername(%v) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{"=1+1": "'=1+1", "+x": "'+x", "-x": "'-x", "@x": "'@x", "plain": "plain", "": ""} {
+		if got := csvSafe(in); got != want {
+			t.Errorf("csvSafe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

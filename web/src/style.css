@@ -202,3 +202,6 @@ tr.bad td { color: var(--danger); }
 
 .rules { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; }
 .rules ul { margin: 4px 0 0; padding-left: 18px; list-style: disc; }
+
+.bulkbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--selected); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+th.check, td.check { width: 32px; padding-right: 0 !important; }

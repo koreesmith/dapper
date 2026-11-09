@@ -6,4 +6,4 @@ web:      ; cd web && npm run dev
 build:    ; cd web && npm run build && cd ../backend && go build -ldflags "-X main.version=$(VERSION)" -o bin/dapper ./cmd/dapper
 image:    ; docker build --build-arg VERSION=$(VERSION) -t dapper:$(VERSION) .
 test: ; cd backend && go vet ./... && go test ./... && cd ../web && npm run build
-e2e:  ; ./scripts/e2e.sh && ./scripts/e2e-unix.sh && ./scripts/e2e-groups.sh && ./scripts/e2e-gid.sh && ./scripts/e2e-security.sh && ./scripts/e2e-password.sh && ./scripts/e2e-overlays.sh
+e2e:  ; ./scripts/e2e.sh && ./scripts/e2e-unix.sh && ./scripts/e2e-groups.sh && ./scripts/e2e-gid.sh && ./scripts/e2e-security.sh && ./scripts/e2e-bulk.sh && ./scripts/e2e-password.sh && ./scripts/e2e-overlays.sh

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, UserPage } from "./api";
+import { BulkAction, BulkDialog } from "./BulkActions";
 import { href } from "./router";
 
 type SortKey = "name" | "username" | "email";
@@ -16,6 +17,9 @@ export function UserList() {
   const [data, setData] = useState<UserPage | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulk, setBulk] = useState<BulkAction | null>(null);
+  const [reload, setReload] = useState(0);
 
   // Wait for a pause in typing before searching.
   useEffect(() => {
@@ -31,7 +35,7 @@ export function UserList() {
       .catch((x) => { if (current) setErr((x as Error).message); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [q, sort, dir, status, page, pageSize]);
+  }, [q, sort, dir, status, page, pageSize, reload]);
 
   const sortBy = (k: SortKey) => {
     if (k === sort) setDir(dir === "asc" ? "desc" : "asc"); else { setSort(k); setDir("asc"); }
@@ -49,7 +53,11 @@ export function UserList() {
     <div className="page">
       <div className="pagehead">
         <h2>People</h2>
-        <a className="btn primary" href="#/people/new">+ New person</a>
+        <div className="actions">
+          <a className="btn" href={`/api/admin/users?format=csv&q=${encodeURIComponent(q)}&status=${status}&sort=${sort}&dir=${dir}`}>Export CSV</a>
+          <a className="btn" href="#/people/import">Import…</a>
+          <a className="btn primary" href="#/people/new">+ New person</a>
+        </div>
       </div>
       <div className="list-tools">
         <input type="search" className="search" aria-label="Search people"
@@ -71,9 +79,28 @@ export function UserList() {
 
       {err && <p className="error" role="alert">{err}</p>}
 
+      {picked.length > 0 && (
+        <div className="bulkbar" role="region" aria-label="Actions for the selected people">
+          <strong>{picked.length} selected</strong>
+          <button onClick={() => setBulk("suspend")}>Suspend</button>
+          <button onClick={() => setBulk("restore")}>Restore</button>
+          <button onClick={() => setBulk("addGroup")}>Add to group…</button>
+          <button onClick={() => setBulk("removeGroup")}>Remove from group…</button>
+          <button className="danger" onClick={() => setBulk("delete")}>Delete…</button>
+          <span className="spacer" />
+          <button className="plain" onClick={() => setPicked([])}>Clear selection</button>
+        </div>
+      )}
+
       <table className="users" aria-busy={loading}>
         <thead>
           <tr>
+            <th className="check"><input type="checkbox" aria-label="Select everyone on this page"
+              checked={!!data && data.users.length > 0 && data.users.every((u) => picked.includes(u.dn))}
+              onChange={(e) => {
+                const here = data?.users.map((u) => u.dn) ?? [];
+                setPicked(e.target.checked ? Array.from(new Set([...picked, ...here])) : picked.filter((d) => !here.includes(d)));
+              }} /></th>
             <th aria-sort={ariaSort("name")}><button className="th" onClick={() => sortBy("name")}>Name{arrow("name")}</button></th>
             <th aria-sort={ariaSort("username")}><button className="th" onClick={() => sortBy("username")}>Username{arrow("username")}</button></th>
             <th aria-sort={ariaSort("email")}><button className="th" onClick={() => sortBy("email")}>Email{arrow("email")}</button></th>
@@ -84,6 +111,8 @@ export function UserList() {
         <tbody>
           {data?.users.map((u) => (
             <tr key={u.dn} className={u.suspended ? "dim" : ""}>
+              <td className="check"><input type="checkbox" aria-label={`Select ${u.name}`} checked={picked.includes(u.dn)}
+                onChange={(e) => setPicked(e.target.checked ? [...picked, u.dn] : picked.filter((d) => d !== u.dn))} /></td>
               <td><a className="rowlink" href={href("#/person", u.dn)}>{u.name}</a>{u.title && <div className="sub">{u.title}</div>}</td>
               <td>{u.username}</td>
               <td>{u.email}</td>
@@ -92,7 +121,7 @@ export function UserList() {
             </tr>
           ))}
           {data && data.users.length === 0 && (
-            <tr><td colSpan={5} className="empty">{q ? `No one matches “${q}”.` : "No people found."}</td></tr>
+            <tr><td colSpan={6} className="empty">{q ? `No one matches “${q}”.` : "No people found."}</td></tr>
           )}
         </tbody>
       </table>
@@ -106,6 +135,7 @@ export function UserList() {
         <button onClick={() => setPage(page + 1)} disabled={page >= pages}>Next ›</button>
         <button onClick={() => setPage(pages)} disabled={page >= pages}>Last »</button>
       </div>
+      {bulk && <BulkDialog action={bulk} dns={picked} onClose={() => setBulk(null)} onDone={() => { setPicked([]); setReload((n) => n + 1); }} />}
       {data?.truncated && <p className="sub">Very large directory: only the first 5,000 accounts are searchable.</p>}
     </div>
   );

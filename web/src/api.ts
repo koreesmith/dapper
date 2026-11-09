@@ -72,6 +72,9 @@ export interface PasswordPolicy {
   minLength: number; enforced: boolean; history?: number; maxAgeDays?: number; lockout?: boolean; maxFailures?: number;
   lockoutMinutes: number; expiresOn?: string; daysLeft?: number;
 }
+export interface ImportRow { row: number; username: string; name: string; status: "ready" | "created" | "error"; message?: string; temporaryPassword?: string }
+export interface ImportResult { rows: ImportRow[]; ready: number; created: number; failed: number; total: number; dryRun: boolean }
+export interface BulkResult { results: { dn: string; ok: boolean; message?: string }[]; done: number; failed: number }
 export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
@@ -120,6 +123,10 @@ export const api = {
   users: (p: UserQuery) =>
     req<UserPage>(`/api/admin/users?q=${encodeURIComponent(p.q)}&sort=${p.sort}&dir=${p.dir}&status=${p.status}&page=${p.page}&pageSize=${p.pageSize}`),
   person: (dn: string) => req<PersonDetail>(`/api/admin/user?${q(dn)}`),
+  importUsers: (csv: string, dryRun: boolean, groups: string[]) =>
+    req<ImportResult>("/api/admin/users/import", json("POST", { csv, dryRun, groups })),
+  bulkUsers: (action: string, dns: string[], group = "", confirmed = false) =>
+    req<BulkResult>("/api/admin/users/bulk", json("POST", { action, dns, group, confirmed })),
   createPerson: (b: { username: string; attrs: Attrs; password?: string; groups: string[] }) =>
     req<{ dn: string; username: string; temporaryPassword?: string }>("/api/admin/users", json("POST", b)),
   updatePerson: (dn: string, attrs: Attrs) => req<{ changed: number }>(`/api/admin/user?${q(dn)}`, json("PATCH", { attrs })),

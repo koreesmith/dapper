@@ -22,6 +22,8 @@ type User struct {
 	Name       string   `json:"name"`
 	Email      string   `json:"email"`
 	Phones     []string `json:"phones"`
+	GivenName  string   `json:"givenName,omitempty"`
+	Surname    string   `json:"surname,omitempty"`
 	Title      string   `json:"title,omitempty"`
 	Department string   `json:"department,omitempty"`
 	Suspended  bool     `json:"suspended"`
@@ -66,6 +68,8 @@ func FromEntry(e ldapclient.Entry) User {
 		Username:   first(e, "uid"),
 		Name:       first(e, "displayName", "cn"),
 		Email:      first(e, "mail"),
+		GivenName:  first(e, "givenName"),
+		Surname:    first(e, "sn"),
 		Title:      first(e, "title"),
 		Department: first(e, "departmentNumber"),
 		Suspended:  first(e, "pwdAccountLockedTime") != "",
@@ -139,17 +143,8 @@ type Page struct {
 	PageSize int    `json:"pageSize"`
 }
 
-// List filters, sorts and pages all.
-func List(all []User, q Query) Page {
-	if q.PageSize < 1 {
-		q.PageSize = 25
-	}
-	if q.PageSize > 200 {
-		q.PageSize = 200
-	}
-	if q.Page < 1 {
-		q.Page = 1
-	}
+// Filtered returns everyone matching the query, sorted, without paging.
+func Filtered(all []User, q Query) []User {
 	matched := make([]User, 0, len(all))
 	for _, u := range all {
 		if q.Status == "active" && u.Suspended || q.Status == "suspended" && !u.Suspended {
@@ -179,6 +174,21 @@ func List(all []User, q Query) Page {
 		}
 		return a < b
 	})
+	return matched
+}
+
+// List filters, sorts and pages all.
+func List(all []User, q Query) Page {
+	if q.PageSize < 1 {
+		q.PageSize = 25
+	}
+	if q.PageSize > 200 {
+		q.PageSize = 200
+	}
+	if q.Page < 1 {
+		q.Page = 1
+	}
+	matched := Filtered(all, q)
 	total := len(matched)
 	start := (q.Page - 1) * q.PageSize
 	if start > total {
