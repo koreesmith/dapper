@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, GroupSummary, Me, PersonDetail as Person } from "./api";
+import { api, GroupSummary, Me, PersonDetail as Person, Unit } from "./api";
+import { unitLabel } from "./Units";
 import { KIND_LABEL } from "./Groups";
 import { changedAttrs, FieldEditor, FormState, initialValues, Modal, Notice, SecretBox } from "./ui";
 import { go, href } from "./router";
@@ -11,6 +12,7 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<"reset" | "delete" | null>(null);
   const [allGroups, setAllGroups] = useState<GroupSummary[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
 
   const load = useCallback(() => api.person(dn).then((d) => {
     setP(d); setForm(initialValues(d.fields));
@@ -18,6 +20,8 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
 
   useEffect(() => { setP(null); setMsg(null); load(); }, [load]);
   useEffect(() => { if (me.features.groups) api.assignableGroups().then(setAllGroups).catch(() => {}); }, [me.features.groups]);
+
+  useEffect(() => { api.units().then((r) => setUnits(r.units)).catch(() => {}); }, []);
 
   if (!p) return <div className="page">{msg ? <Notice kind="error">{msg.text}</Notice> : "Loading…"}<p><a href="#/people">← Back to people</a></p></div>;
 
@@ -70,6 +74,22 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
         </div>
         {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       </form>
+
+      {units.length > 1 && !p.suspended && !p.isSelf && p.ou && (
+        <div className="panel">
+          <h3>Unit</h3>
+          <label className="inline">Where they sit in the people list
+            <select value={units.find((u) => u.dn.toLowerCase() === p.ou!.toLowerCase())?.dn ?? ""} onChange={async (e) => {
+              setMsg(null);
+              try { const r = await api.movePerson(p.dn, e.target.value); go(href("/person", r.dn)); }
+              catch (x) { setMsg({ kind: "error", text: (x as Error).message }); }
+            }}>
+              {units.map((u) => <option key={u.dn} value={u.dn}>{unitLabel(u)}</option>)}
+            </select>
+          </label>
+          <p className="sub">Moving someone keeps their groups. They will be signed out of any open sessions.</p>
+        </div>
+      )}
 
       {me.features.groups && (
         <div className="panel">

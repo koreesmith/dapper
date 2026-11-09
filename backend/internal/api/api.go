@@ -95,6 +95,11 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	// Administration of people, groups and settings.
 	mux.HandleFunc("GET /api/admin/users", s.admin(s.listUsers))
 	mux.HandleFunc("POST /api/admin/users", s.admin(s.createUser))
+	mux.HandleFunc("GET /api/admin/ous", s.admin(s.listOUs))
+	mux.HandleFunc("POST /api/admin/ous", s.admin(s.createOU))
+	mux.HandleFunc("POST /api/admin/ous/rename", s.admin(s.renameOU))
+	mux.HandleFunc("DELETE /api/admin/ou", s.admin(s.deleteOU))
+	mux.HandleFunc("POST /api/admin/user/move", s.admin(s.movePerson))
 	mux.HandleFunc("POST /api/admin/users/import", s.admin(s.importUsers))
 	mux.HandleFunc("POST /api/admin/users/bulk", s.admin(s.bulkUsers))
 	mux.HandleFunc("GET /api/admin/user", s.admin(s.getUser))

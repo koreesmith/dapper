@@ -115,6 +115,7 @@ func (s *Server) getUser(w http.ResponseWriter, r *http.Request, sess *session.S
 		resp = map[string]any{
 			"dn": dn, "username": u.Username, "name": u.Name,
 			"suspended": u.Suspended || s.isSuspendedDN(dn),
+			"ou":        parentDN(dn),
 			"isSelf":    strings.EqualFold(dn, sess.DN),
 			"fields":    s.fieldValues(e, func(policy.Field) bool { return true }),
 			"groups":    groups,
@@ -295,7 +296,7 @@ func (s *Server) personAttrs(cfg *config.Config, username string, in map[string]
 
 // addPerson creates an account and sets its password, undoing the account if the
 // password can't be set. Usernames must be unique across active and suspended people.
-func (s *Server) addPerson(c *ldapclient.Client, cfg *config.Config, username string, attrs map[string][]string, password string) (string, error) {
+func (s *Server) addPerson(c *ldapclient.Client, cfg *config.Config, username string, attrs map[string][]string, password, ou string) (string, error) {
 	for _, base := range []string{cfg.Users.BaseDN, cfg.Users.SuspendedBaseDN} {
 		if base == "" {
 			continue
@@ -308,7 +309,11 @@ func (s *Server) addPerson(c *ldapclient.Client, cfg *config.Config, username st
 			return "", validationError("The username \u201c" + username + "\u201d is already taken.")
 		}
 	}
-	dn := cfg.Users.RDNAttribute + "=" + escapeRDN(username) + "," + cfg.Users.BaseDN
+	parent := cfg.Users.BaseDN
+	if ou != "" {
+		parent = ou
+	}
+	dn := cfg.Users.RDNAttribute + "=" + escapeRDN(username) + "," + parent
 	if err := c.Add(ldapclient.Entry{DN: dn, Attrs: attrs}); err != nil {
 		return "", err
 	}
@@ -325,6 +330,7 @@ type newPerson struct {
 	Attrs    map[string][]string
 	Password string   // empty: generate a temporary one
 	Groups   []string // DNs of groups to join
+	OU       string   // DN of the unit to create the account in; empty for the people container
 }
 
 type createdPerson struct {
@@ -350,6 +356,9 @@ func (s *Server) validatePerson(cfg *config.Config, in newPerson) (string, map[s
 			return "", nil, err
 		}
 	}
+	if in.OU != "" && !s.inPeopleTree(in.OU) {
+		return "", nil, validationError("People can only be created in the people container or a unit inside it.")
+	}
 	return username, attrs, nil
 }
 
@@ -372,7 +381,7 @@ func (s *Server) createPerson(c *ldapclient.Client, cfg *config.Config, in newPe
 			return nil, err
 		}
 	}
-	dn, err := s.addPerson(c, cfg, username, attrs, password)
+	dn, err := s.addPerson(c, cfg, username, attrs, password, in.OU)
 	if err != nil {
 		return nil, err
 	}
@@ -400,6 +409,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		Attrs    map[string][]string `json:"attrs"`
 		Password string              `json:"password"`
 		Groups   []string            `json:"groups"`
+		OU       string              `json:"ou"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "Invalid request.")
@@ -408,7 +418,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 	cfg := s.c()
 	var made *createdPerson
 	if !s.withSvc(w, func(c *ldapclient.Client) (err error) {
-		made, err = s.createPerson(c, cfg, newPerson{Username: in.Username, Attrs: in.Attrs, Password: in.Password, Groups: in.Groups})
+		made, err = s.createPerson(c, cfg, newPerson{Username: in.Username, Attrs: in.Attrs, Password: in.Password, Groups: in.Groups, OU: in.OU})
 		return
 	}) {
 		return

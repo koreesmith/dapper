@@ -11,6 +11,7 @@ import { Advanced } from "./Advanced";
 import { Server } from "./Server";
 import { Activity } from "./Activity";
 import { ImportPeople } from "./ImportPeople";
+import { Units } from "./Units";
 import { Setup } from "./Setup";
 import { go, useRoute } from "./router";
 
@@ -77,7 +78,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   const sec = section(path);
 
   // Send people to a sensible home, and keep non-admins out of admin screens.
-  const adminOnly = ["people", "person", "groups", "group", "settings", "server", "activity", "advanced"];
+  const adminOnly = ["people", "person", "units", "groups", "group", "settings", "server", "activity", "advanced"];
   useEffect(() => {
     if (path === "/" || path === "") go(me.isAdmin ? "/people" : "/me");
     else if (!me.isAdmin && adminOnly.includes(sec)) go("/me");
@@ -92,6 +93,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   else if (sec === "people" && arg(path) === "new") view = <NewPerson me={me} />;
   else if (sec === "people" && arg(path) === "import") view = <ImportPeople />;
   else if (sec === "people") view = <UserList />;
+  else if (sec === "units") view = <Units />;
   else if (sec === "person") view = <PersonDetail key={arg(path)} dn={arg(path)} me={me} />;
   else if (sec === "groups") view = <Groups />;
   else if (sec === "group") view = <GroupDetail dn={arg(path)} />;
@@ -106,7 +108,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
       <header>
         <strong>Dapper</strong>
         <nav aria-label="Main">
-          {me.isAdmin && tab("/people", "People", ["people", "person"])}
+          {me.isAdmin && tab("/people", "People", ["people", "person", "units"])}
           {me.isAdmin && me.features.groups && tab("/groups", "Groups", ["groups", "group"])}
           {tab("/me", "My account", ["me", ""])}
           {me.isAdmin && tab("/settings", "Settings", ["settings"])}

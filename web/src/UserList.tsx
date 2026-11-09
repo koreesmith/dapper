@@ -56,6 +56,7 @@ export function UserList() {
         <div className="actions">
           <a className="btn" href={`/api/admin/users?format=csv&q=${encodeURIComponent(q)}&status=${status}&sort=${sort}&dir=${dir}`}>Export CSV</a>
           <a className="btn" href="#/people/import">Import…</a>
+          <a className="btn" href="#/units">Units…</a>
           <a className="btn primary" href="#/people/new">+ New person</a>
         </div>
       </div>

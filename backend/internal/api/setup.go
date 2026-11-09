@@ -224,7 +224,7 @@ func (s *Server) createFirstAdmin(c *ldapclient.Client, cfg *config.Config, a se
 		if err != nil {
 			return err
 		}
-		if userDN, err = s.addPerson(c, cfg, username, attrs, a.Password); err != nil {
+		if userDN, err = s.addPerson(c, cfg, username, attrs, a.Password, ""); err != nil {
 			return err
 		}
 	} else {

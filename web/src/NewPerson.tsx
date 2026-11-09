@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, Attrs, GroupSummary, Me } from "./api";
+import { api, Attrs, GroupSummary, Me, Unit } from "./api";
+import { unitLabel } from "./Units";
 import { Notice, SecretBox } from "./ui";
 import { href } from "./router";
 
@@ -22,11 +23,14 @@ export function NewPerson({ me }: { me: Me }) {
   const [sshKey, setSshKey] = useState("");
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [chosen, setChosen] = useState<string[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [ou, setOu] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ dn: string; username: string; pw?: string } | null>(null);
 
   useEffect(() => { if (me.features.groups) api.assignableGroups().then(setGroups).catch(() => {}); }, [me.features.groups]);
+  useEffect(() => { api.units().then((r) => setUnits(r.units)).catch(() => {}); }, []);
   useEffect(() => {
     if (me.features.unix && !homeEdited) setHome(me.features.homePattern.replace("%u", username));
   }, [username, homeEdited, me.features.unix, me.features.homePattern]);
@@ -48,7 +52,7 @@ export function NewPerson({ me }: { me: Me }) {
       if (me.features.sshKeys && sshKey.trim()) attrs.sshPublicKey = [sshKey.trim()];
     }
     try {
-      const r = await api.createPerson({ username, attrs, password: mode === "set" ? password : undefined, groups: chosen });
+      const r = await api.createPerson({ username, attrs, password: mode === "set" ? password : undefined, groups: chosen, ou: ou || undefined });
       setCreated({ dn: r.dn, username: r.username, pw: r.temporaryPassword });
     } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
@@ -93,6 +97,14 @@ export function NewPerson({ me }: { me: Me }) {
           <label>Phone<input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
         </div>
         <label>Job title<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+
+        {units.length > 1 && (
+          <label>Unit
+            <select value={ou} onChange={(e) => setOu(e.target.value)}>
+              {units.map((u) => <option key={u.dn} value={u.root ? "" : u.dn}>{unitLabel(u)}</option>)}
+            </select>
+          </label>
+        )}
 
         {me.features.unix && (
           <fieldset>
