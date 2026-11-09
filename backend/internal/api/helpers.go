@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	auditrec "github.com/koreesmith/dapper/backend/internal/audit"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
 	"github.com/koreesmith/dapper/backend/internal/session"
 )
@@ -118,17 +119,26 @@ func detail(le *ldap.Error) string {
 	return " (" + m + ")"
 }
 
-// audit writes one structured line per administrative action. Never pass secrets.
+// auditLog is where audited actions are kept for the Activity page (nil if the data directory isn't writable).
+var auditLog *auditrec.Log
+
+// audit records one action: a line in the log and an entry on the Activity page. Never pass secrets.
 func audit(sess *session.Session, action, target string, kv ...string) {
 	actor := "-"
 	if sess != nil {
 		actor = sess.DN
 	}
+	detail := map[string]string{}
 	extra := ""
 	for i := 0; i+1 < len(kv); i += 2 {
+		detail[kv[i]] = kv[i+1]
 		extra += fmt.Sprintf(" %s=%q", kv[i], kv[i+1])
 	}
 	log.Printf("audit actor=%q action=%s target=%q%s", actor, action, target, extra)
+	if len(detail) == 0 {
+		detail = nil
+	}
+	auditLog.Add(auditrec.Event{Actor: actor, Action: action, Target: target, Detail: detail})
 }
 
 // ---- login rate limiting ----

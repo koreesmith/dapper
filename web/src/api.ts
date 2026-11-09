@@ -66,6 +66,8 @@ export interface GIDPreview {
 export interface PersonGIDPreview { person: string; old: string; new: string; group: string; warnings: string[] }
 export interface GIDFix { label: string; kind: "groupGID" | "personGID" | "createGroup"; groupDN?: string; personDN?: string; gid: string; groupName?: string }
 export interface GIDIssue { kind: string; title: string; detail: string; fixes: GIDFix[] }
+export interface ActivityEvent { time: string; actor: string; action: string; target?: string; detail?: Record<string, string> }
+export interface ActivityPage { events: ActivityEvent[]; total: number; page: number; pageSize: number }
 export interface Discovery {
   ok: boolean; checks: Check[]; contexts?: string[];
   suggestions?: { usersBaseDN: string; groupsBaseDN: string; suspendedBaseDN: string; adminGroupDN: string };
@@ -154,6 +156,9 @@ export const api = {
   previewOverlay: (r: OverlayRequest) => req<OverlayPreview>("/api/admin/overlays/preview", json("POST", r)),
   applyOverlay: (r: OverlayRequest) => req<{ ok: boolean; backup: string; refreshedGroups: number }>("/api/admin/overlays/apply", json("POST", r)),
   refreshMemberOf: () => req<{ refreshedGroups: number }>("/api/admin/overlays/memberof/refresh", json("POST", { confirmed: true })),
+
+  activity: (p: { q: string; category: string; page: number }) =>
+    req<ActivityPage>(`/api/admin/audit?q=${encodeURIComponent(p.q)}&category=${p.category}&page=${p.page}&pageSize=50`),
 
   // first-run setup
   version: () => req<{ version: string }>("/api/version"),

@@ -9,6 +9,7 @@ import { GroupDetail, Groups } from "./Groups";
 import { Settings } from "./Settings";
 import { Advanced } from "./Advanced";
 import { Server } from "./Server";
+import { Activity } from "./Activity";
 import { Setup } from "./Setup";
 import { go, useRoute } from "./router";
 
@@ -75,7 +76,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   const sec = section(path);
 
   // Send people to a sensible home, and keep non-admins out of admin screens.
-  const adminOnly = ["people", "person", "groups", "group", "settings", "server", "advanced"];
+  const adminOnly = ["people", "person", "groups", "group", "settings", "server", "activity", "advanced"];
   useEffect(() => {
     if (path === "/" || path === "") go(me.isAdmin ? "/people" : "/me");
     else if (!me.isAdmin && adminOnly.includes(sec)) go("/me");
@@ -94,6 +95,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   else if (sec === "group") view = <GroupDetail dn={arg(path)} />;
   else if (sec === "settings") view = <Settings />;
   else if (sec === "server") view = <Server />;
+  else if (sec === "activity") view = <Activity />;
   else if (sec === "advanced") view = <Advanced />;
   else view = <MyAccount me={me} />;
 
@@ -107,6 +109,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
           {tab("/me", "My account", ["me", ""])}
           {me.isAdmin && tab("/settings", "Settings", ["settings"])}
           {me.isAdmin && tab("/server", "Server", ["server"])}
+          {me.isAdmin && tab("/activity", "Activity", ["activity"])}
           {me.isAdmin && tab("/advanced", "Advanced", ["advanced"])}
         </nav>
         <span className="spacer" />

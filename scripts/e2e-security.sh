@@ -75,5 +75,24 @@ req adm POST /api/admin/overlays/lock >/dev/null
 req adm GET "/api/admin/overlays/backup?name=$BK"; check "once locked, a backup can't be downloaded" 403
 req adm GET "/api/admin/overlays/backup?name=../../etc/passwd"; check "backup names can't be used to read other files" 403
 
+# --- 4. the Activity record ---
+MARK="wrong-$R-marker"
+req t POST /api/login "{\"username\":\"nosuchperson$R\",\"password\":\"$MARK\"}"; check "a failed sign-in" 401
+req t POST /api/login "{\"username\":\"=HYPERLINK(\\\"x\\\")$R\",\"password\":\"$MARK\"}" >/dev/null
+req adm GET "/api/admin/audit?q=nosuchperson$R"; check "the activity list is available to administrators" 200
+expect "a failed sign-in is recorded with the username typed" "$(jq_ "[e['action'] for e in d['events']]")" "['login.failed']"
+expect "and where it came from" "$(jq_ "'ip' in d['events'][0]['detail']")" True
+expect "but the password is never recorded" "$(req adm GET "/api/admin/audit?pageSize=500"; echo "$BODY" | grep -c "$MARK")" 0
+req adm GET "/api/admin/audit?category=login&pageSize=500"
+expect "the category filter works" "$(jq_ "all(e['action'].startswith('login') for e in d['events']) and len(d['events'])>0")" True
+req adm GET "/api/admin/audit?q=$U2"
+expect "account changes are recorded with who did them" "$(jq_ "any(e['action']=='user.create' and 'alice' in e['actor'] for e in d['events'])")" True
+req bob POST /api/login '{"username":"bob","password":"bobpass"}' >/dev/null
+req bob GET /api/admin/audit; check "ordinary people can't see the activity record" 403
+req adm GET "/api/admin/audit?format=csv&pageSize=500"; check "download as CSV" 200
+expect "CSV starts with a header row" "$(echo "$BODY" | head -1)" "time,who,action,target,details"
+expect "spreadsheet formulas in the data are neutralised" "$([ "$(echo "$BODY" | grep -c "login.failed,\"\?'=HYPERLINK")" -ge 1 ] && echo yes)" yes
+expect "and none is left raw" "$(echo "$BODY" | grep -c "login.failed,\"\?=HYPERLINK")" 0
+
 echo; echo "passed $PASS, failed $FAIL"
 [ "$FAIL" = 0 ]

@@ -197,3 +197,5 @@ ol.plainlist { list-style: decimal; }
 .issues li { border-top: 1px solid var(--border); padding-top: 10px; }
 
 .version { text-align: center; color: var(--muted); font-size: 12px; padding: 6px; }
+
+tr.bad td { color: var(--danger); }

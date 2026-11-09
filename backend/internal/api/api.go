@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	auditrec "github.com/koreesmith/dapper/backend/internal/audit"
 	"github.com/koreesmith/dapper/backend/internal/config"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
 	"github.com/koreesmith/dapper/backend/internal/policy"
@@ -41,6 +42,11 @@ func New(store *config.Store, pol *policy.Policy) *Server {
 	}
 	if !store.Configured() {
 		s.setupToken = newSetupToken()
+	}
+	if l, err := auditrec.Open(cfg.DataDir); err != nil {
+		log.Printf("the activity record couldn't be opened (%v); actions are still written to this log", err)
+	} else {
+		auditLog = l
 	}
 	return s
 }
@@ -98,6 +104,7 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/admin/groups", s.admin(s.createGroup))
 	mux.HandleFunc("GET /api/admin/group", s.admin(s.getGroup))
 	mux.HandleFunc("DELETE /api/admin/group", s.admin(s.deleteGroup))
+	mux.HandleFunc("GET /api/admin/audit", s.admin(s.listAudit))
 	mux.HandleFunc("GET /api/admin/groups/check", s.admin(s.checkGroups))
 	mux.HandleFunc("POST /api/admin/group/gid", s.admin(s.groupGID))
 	mux.HandleFunc("POST /api/admin/user/gid", s.admin(s.personGID))
@@ -190,12 +197,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	ipKey, userKey := "ip:"+clientIP(r), "user:"+strings.ToLower(in.Username)
 	if s.limit.blocked(ipKey, userKey) {
+		audit(nil, "login.blocked", in.Username, "ip", clientIP(r))
 		w.Header().Set("Retry-After", "600")
 		fail(w, http.StatusTooManyRequests, "Too many failed sign-in attempts. Wait a few minutes and try again.")
 		return
 	}
 	failed := func() {
 		s.limit.fail(ipKey, userKey)
+		audit(nil, "login.failed", in.Username, "ip", clientIP(r)) // the username typed, never the password
 		fail(w, http.StatusUnauthorized, loginFailed)
 	}
 
