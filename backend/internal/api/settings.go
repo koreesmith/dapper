@@ -161,6 +161,10 @@ func (s *Server) runChecks(cfg *config.Config) ([]check, *ldapclient.Client) {
 		return []check{{Key: "connect", Message: msg}}, nil
 	}
 	out := []check{{Key: "connect", OK: true, Message: "Connected and signed in as the service account."}}
+	if strings.HasPrefix(strings.ToLower(cfg.LDAP.URL), "ldap://") && !cfg.LDAP.StartTLS {
+		out = append(out, check{Key: "encryption", OK: true, Warn: true,
+			Message: "This connection isn't encrypted, so the service account's password and everyone's sign-in passwords cross the network in clear text. Use ldaps:// or turn on StartTLS unless the directory is on this same machine."})
+	}
 
 	container := func(key, label, dn string, optional bool) {
 		if dn == "" {

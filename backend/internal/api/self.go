@@ -112,6 +112,7 @@ func (s *Server) changeOwnPassword(w http.ResponseWriter, r *http.Request, sess 
 	if !s.withSvc(w, func(c *ldapclient.Client) error { return c.SetPassword(sess.DN, in.New) }) {
 		return
 	}
+	s.sessions.RevokeFor(sess.DN, sess.ID) // other devices must sign in again; this one carries on
 	audit(sess, "password.change", sess.DN)
 	writeJSON(w, map[string]string{"status": "ok"})
 }

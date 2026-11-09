@@ -19,3 +19,28 @@ func TestParseObjectClassNames(t *testing.T) {
 		t.Errorf("unexpected names: %v", got)
 	}
 }
+
+func TestHostOf(t *testing.T) {
+	for in, want := range map[string]string{
+		"ldap://ldap.example.org:389": "ldap.example.org", "ldaps://ldap.example.org": "ldap.example.org",
+		"ldap://[::1]:389": "::1", "ldap://10.0.0.5": "10.0.0.5", "not a url": "",
+	} {
+		if got := hostOf(in); got != want {
+			t.Errorf("hostOf(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestIsSecretAttr(t *testing.T) {
+	for _, secret := range []string{"userPassword", "USERPASSWORD", "sambaNTPassword", "sambaLMPassword", "sambaPasswordHistory",
+		"olcRootPW", "pwdHistory", "krbPrincipalKey", "olcSyncrepl", "unicodePwd", "authPassword"} {
+		if !IsSecretAttr(secret) {
+			t.Errorf("%s should be treated as secret", secret)
+		}
+	}
+	for _, ok := range []string{"cn", "uid", "mail", "gidNumber", "memberOf", "olcMirrorMode", "pwdAccountLockedTime", "pwdChangedTime", "sshPublicKey", "olcOverlay"} {
+		if IsSecretAttr(ok) {
+			t.Errorf("%s is not secret", ok)
+		}
+	}
+}

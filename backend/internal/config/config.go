@@ -292,7 +292,12 @@ func (s *Store) Merge(in Settings) *Config {
 	cur := s.Get()
 	next := *cur
 	next.Settings = in
-	if in.LDAP.BindPassword == "" {
+	// A blank password means "keep the saved one", but only for the same server and account. If the
+	// address, encryption or account name changed, the saved password must not follow them: it would be
+	// sent to whatever server was typed in.
+	sameTarget := strings.EqualFold(strings.TrimSpace(in.LDAP.URL), cur.LDAP.URL) && in.LDAP.StartTLS == cur.LDAP.StartTLS &&
+		in.LDAP.SkipVerify == cur.LDAP.SkipVerify && strings.EqualFold(strings.TrimSpace(in.LDAP.BindDN), cur.LDAP.BindDN)
+	if in.LDAP.BindPassword == "" && sameTarget {
 		next.LDAP.BindPassword = cur.LDAP.BindPassword
 	}
 	s.mu.RLock()

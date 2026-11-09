@@ -453,6 +453,10 @@ func (s *Server) setSuspended(suspend bool) handler {
 		if suspend {
 			act = "user.suspend"
 		}
+		if suspend { // a suspended person must not carry on with a session they already had
+			s.sessions.RevokeFor(dn, "")
+			s.sessions.RevokeFor(newDN, "")
+		}
 		audit(sess, act, newDN)
 		writeJSON(w, map[string]string{"dn": newDN})
 	}
@@ -494,6 +498,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, sess *sessio
 	}) {
 		return
 	}
+	s.sessions.RevokeFor(dn, "")
 	audit(sess, "user.delete", dn)
 	writeJSON(w, map[string]string{"status": "ok"})
 }
@@ -516,6 +521,8 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request, sess *ses
 	if !s.withSvc(w, func(c *ldapclient.Client) error { return c.SetPassword(dn, password) }) {
 		return
 	}
+	// Whoever may have been using the account (for example after a compromise) is signed out.
+	s.sessions.RevokeFor(dn, "")
 	audit(sess, "user.password.reset", dn)
 	resp := map[string]any{"status": "ok"}
 	if generated {

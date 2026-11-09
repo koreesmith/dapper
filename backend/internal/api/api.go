@@ -214,6 +214,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		failed()
 		return
 	}
+	if s.isSuspendedDN(dn) { // the suspended container may sit under the people container
+		failed()
+		return
+	}
 	isAdmin, err := svc.IsMember(s.c().Admin.GroupDN, dn)
 	if err != nil {
 		log.Printf("login: admin group check: %v", err)

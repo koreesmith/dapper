@@ -2,6 +2,7 @@ package ldapclient
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -57,5 +58,28 @@ func TestPagingReturnsEveryone(t *testing.T) {
 	names, err := c.ObjectClassNames()
 	if err != nil || !names["posixaccount"] || !names["inetorgperson"] {
 		t.Errorf("schema names: %v %v", len(names), err)
+	}
+}
+
+// StartTLS with verification on must fail because the certificate isn't trusted, never because
+// no server name was given (which used to force people to turn verification off).
+func TestStartTLSChecksTheCertificate(t *testing.T) {
+	url := os.Getenv("DAPPER_TEST_LDAP_URL")
+	if url == "" {
+		t.Skip("DAPPER_TEST_LDAP_URL not set")
+	}
+	_, err := Dial(Server{URL: url, StartTLS: true})
+	if err == nil {
+		t.Skip("the server's certificate is trusted here")
+	}
+	if strings.Contains(err.Error(), "either ServerName or InsecureSkipVerify") {
+		t.Fatalf("server name isn't being set: %v", err)
+	}
+	// (Skipping verification should connect, but the demo image's built-in certificate has expired and
+	// its TLS doesn't work for any client, so that half is only informational here.)
+	if c, err := Dial(Server{URL: url, StartTLS: true, SkipVerify: true}); err != nil {
+		t.Logf("skip-verify connect failed (the demo server's TLS is broken): %v", err)
+	} else {
+		c.Close()
 	}
 }

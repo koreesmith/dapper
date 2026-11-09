@@ -489,7 +489,7 @@ func ldifEntry(e ldapclient.Entry) string {
 func (s *Server) backupConfig(cc *ldapclient.Client, st *overlays.State) (string, error) {
 	var b strings.Builder
 	b.WriteString("# Saved by Dapper before changing the directory server's configuration.\n")
-	b.WriteString("# Restore with: sudo ldapmodify -Y EXTERNAL -H ldapi:/// (review first).\n\n")
+	b.WriteString("# Restore with: sudo ldapmodify -Y EXTERNAL -H ldapi:/// (review first).\n# Password hashes and other secrets are deliberately left out.\n\n")
 	for _, base := range []string{st.DBDN, st.ModuleDN} {
 		if base == "" {
 			continue
@@ -514,7 +514,12 @@ func (s *Server) backupConfig(cc *ldapclient.Client, st *overlays.State) (string
 	return name, nil
 }
 
-func (s *Server) overlaysBackup(w http.ResponseWriter, r *http.Request, _ *session.Session) {
+func (s *Server) overlaysBackup(w http.ResponseWriter, r *http.Request, sess *session.Session) {
+	// Backups describe how the server is set up, so they need the same login as changing it.
+	if sess.ConfigConn(configIdle) == nil {
+		fail(w, http.StatusForbidden, "Unlock the server settings to download a backup.")
+		return
+	}
 	name := r.URL.Query().Get("name")
 	if !backupNameRE.MatchString(name) {
 		fail(w, http.StatusBadRequest, "Unknown backup.")

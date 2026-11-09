@@ -582,6 +582,8 @@ func (s *Server) changeMember(add bool) handler {
 		act := "group.member.remove"
 		if add {
 			act = "group.member.add"
+		} else if eqFold(gdn, s.c().Admin.GroupDN) {
+			s.sessions.RevokeFor(member, "") // admin rights are decided at sign-in, so end their sessions now
 		}
 		audit(sess, act, gdn, "member", member)
 		writeJSON(w, map[string]string{"status": "ok"})

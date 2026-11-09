@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -39,7 +40,7 @@ type Client struct {
 
 // Dial connects (with optional StartTLS) but does not bind.
 func Dial(srv Server) (*Client, error) {
-	tlsCfg := &tls.Config{InsecureSkipVerify: srv.SkipVerify} //nolint:gosec // operator opt-in
+	tlsCfg := &tls.Config{InsecureSkipVerify: srv.SkipVerify, ServerName: hostOf(srv.URL)} //nolint:gosec // skipping verification is an explicit operator choice
 	conn, err := ldap.DialURL(srv.URL, ldap.DialWithTLSConfig(tlsCfg))
 	if err != nil {
 		return nil, fmt.Errorf("connect: %w", err)
@@ -105,15 +106,19 @@ func (c *Client) IsMember(groupDN, memberDN string) (bool, error) {
 	return len(es) == 1, nil
 }
 
-func (c *Client) Close() { c.conn.Close() }
+func (c *Client) Close() {
+	if c != nil && c.conn != nil {
+		c.conn.Close()
+	}
+}
 
 func toEntries(res *ldap.SearchResult) []Entry {
 	out := make([]Entry, 0, len(res.Entries))
 	for _, e := range res.Entries {
 		a := map[string][]string{}
 		for _, at := range e.Attributes {
-			if strings.EqualFold(at.Name, "userPassword") {
-				continue // never send password data to the browser
+			if IsSecretAttr(at.Name) {
+				continue // never send password data to the browser or write it to a backup
 			}
 			a[at.Name] = at.Values
 		}
@@ -513,4 +518,26 @@ func (c *Client) GroupsFor(base, personDN, username, gid string) (member []Group
 		}
 	}
 	return member, primary, nil
+}
+
+// hostOf returns the host part of an ldap:// or ldaps:// URL, used to check the server's certificate.
+// Without it, Go refuses StartTLS handshakes unless verification is switched off entirely.
+func hostOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// IsSecretAttr reports whether an attribute holds password or key material that must never leave the server
+// through Dapper: password hashes (userPassword, Samba hashes, the directory's root password), password
+// history, Kerberos keys and replication credentials.
+func IsSecretAttr(name string) bool {
+	n := strings.ToLower(name)
+	switch n {
+	case "olcrootpw", "pwdhistory", "krbprincipalkey", "krbextradata", "olcsyncrepl", "olcmirrormode":
+		return n != "olcmirrormode"
+	}
+	return strings.Contains(n, "password") || strings.Contains(n, "passwd") || strings.HasSuffix(n, "pwd")
 }
