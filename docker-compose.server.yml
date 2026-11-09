@@ -1,0 +1,41 @@
+# Dapper plus its own directory server (OpenLDAP) in one stack. Use this when you don't already have an
+# LDAP server and want Dapper to run one for you:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
+# Then open Dapper, choose "I need a new server", and follow the setup. The setup code is in the log:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml logs dapper
+# Settings go in a .env file (see .env.example): LDAP_HOSTNAME is the name your servers will use to reach this one.
+services:
+  openldap:
+    build:
+      context: ./openldap
+      args:
+        VERSION: ${DAPPER_VERSION:-dev}
+    environment:
+      LDAP_HOSTNAME: ${LDAP_HOSTNAME:-localhost}   # put in the certificate so clients can verify it
+      LDAP_TLS_NAMES: ${LDAP_TLS_NAMES:-}          # more names for the certificate, comma separated
+    ports:
+      # Other machines connect here. Both need an encrypted connection: 389 (StartTLS) and 636 (LDAPS).
+      - "${LDAP_BIND:-0.0.0.0}:${LDAP_PORT:-389}:389"
+      - "${LDAP_BIND:-0.0.0.0}:${LDAPS_PORT:-636}:636"
+    volumes:
+      - ldap-config:/etc/ldap/slapd.d   # the server's configuration
+      - ldap-data:/var/lib/ldap         # the directory itself: back this up
+      - ldap-tls:/etc/ldap/tls          # the certificate (tls.crt, tls.key; optional ca.crt)
+      - ldap-handoff:/handoff           # first-start logins, passed to Dapper once and then removed
+      - ldap-backups:/backups
+    restart: unless-stopped
+
+  dapper:
+    depends_on:
+      openldap:
+        condition: service_healthy
+    volumes:
+      - ldap-handoff:/handoff
+      - ldap-backups:/backups:ro
+
+volumes:
+  ldap-config:
+  ldap-data:
+  ldap-tls:
+  ldap-handoff:
+  ldap-backups:
