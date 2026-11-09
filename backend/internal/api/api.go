@@ -175,12 +175,12 @@ func (s *Server) user(h handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(cookieName)
 		if err != nil {
-			fail(w, http.StatusUnauthorized, "not signed in")
+			failNotSignedIn(w)
 			return
 		}
 		sess := s.sessions.Get(c.Value)
 		if sess == nil {
-			fail(w, http.StatusUnauthorized, "not signed in")
+			failNotSignedIn(w)
 			return
 		}
 		h(w, r, sess)
@@ -404,6 +404,14 @@ func fail(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// failNotSignedIn answers a request that has no live session. The "code" lets the web page tell this
+// apart from other 401s (a wrong password, a wrong setup code) and send the person to the sign-in screen.
+func failNotSignedIn(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": "not signed in", "code": "session_ended"})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

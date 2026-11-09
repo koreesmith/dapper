@@ -36,6 +36,7 @@ form.card button:not(.plain), .primary { background: var(--primary); color: var(
 form.card button:not(.plain):hover:not(:disabled), .primary:hover { background: var(--primary-hover); }
 button.danger { color: var(--danger); }
 .error { color: var(--danger); }
+.notice { color: var(--muted, inherit); margin: 0 0 .75rem; }
 
 .card { max-width: 380px; margin: 10vh auto; padding: 24px; display: flex; flex-direction: column; gap: 10px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }

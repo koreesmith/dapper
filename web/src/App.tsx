@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Me } from "./api";
+import { api, Me, setSessionEndedHandler } from "./api";
 import { ThemePicker } from "./ThemePicker";
 import { UserList } from "./UserList";
 import { PersonDetail } from "./PersonDetail";
@@ -19,6 +19,11 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checked, setChecked] = useState(false);
   const [configured, setConfigured] = useState(true);
+  const [ended, setEnded] = useState(false);
+
+  // Any request that finds the session gone sends the person back to sign in; the address
+  // (which page they were on) is left alone, so they come back to it after signing in.
+  useEffect(() => { setSessionEndedHandler(() => { setMe(null); setEnded(true); }); }, []);
 
   useEffect(() => {
     Promise.all([
@@ -29,7 +34,11 @@ export function App() {
 
   if (!checked) return null;
   if (!configured) return <Setup onDone={() => { setConfigured(true); go("/"); }} />;
-  if (!me) return <Login onSignedIn={(m) => { setMe(m); go(m.isAdmin ? "/people" : "/me"); }} />;
+  if (!me) return <Login ended={ended} onSignedIn={(m) => {
+    setMe(m); setEnded(false);
+    const here = decodeURIComponent(window.location.hash.replace(/^#/, "")) || "/";
+    if (here === "/") go(m.isAdmin ? "/people" : "/me"); // otherwise stay on the page they were on
+  }} />;
   return <Shell me={me} onSignOut={() => api.logout().then(() => { setMe(null); go("/"); })} />;
 }
 
@@ -39,7 +48,7 @@ function VersionNote() {
   return v ? <footer className="version">Dapper {v}</footer> : null;
 }
 
-function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
+function Login({ onSignedIn, ended }: { onSignedIn: (m: Me) => void; ended?: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -56,6 +65,7 @@ function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
         finally { setBusy(false); }
       }}>
         <h1>Dapper</h1>
+        {ended && <p className="notice" role="status">Your session has ended. Please sign in again.</p>}
         <label>Username or email
           <input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
         </label>

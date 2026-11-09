@@ -26,6 +26,10 @@ U=e2e$RANDOM
 UDN="uid=$U,ou=people,dc=example,dc=org"
 
 login admin alice alicepass;               check "admin login" 200
+req nobody GET /api/admin/users;            check "no session is refused" 401
+expect "no session is marked as ended, so the page returns to sign-in" "$(jq_ "d['code']")" session_ended
+login nobody alice wrongpass;              check "wrong password is a plain 401" 401
+expect "wrong password is not marked as a session ending" "$(jq_ "d.get('code','')")" ""
 login bob bob bobpass;                     check "user login" 200
 req bob GET /api/admin/users;              check "user blocked from admin API" 403
 req admin GET "/api/admin/users?q=bob";    check "list+search" 200

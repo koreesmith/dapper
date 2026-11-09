@@ -99,13 +99,23 @@ export interface Discovery {
 let setupCode = "";
 export const setSetupCode = (c: string) => { setupCode = c; };
 
+/** Called when the server says the session has ended; the app shows the sign-in screen. */
+let onSessionEnded: () => void = () => {};
+export const setSessionEndedHandler = (f: () => void) => { onSessionEnded = f; };
+
+function checkSession(path: string, status: number, body: { code?: string }) {
+  // /api/me is how the page finds out whether anyone is signed in at all, so it isn't a "session ended".
+  if (status === 401 && body.code === "session_ended" && path !== "/api/me") onSessionEnded();
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json", "X-Requested-With": "dapper" };
   if (setupCode && path.startsWith("/api/setup/")) headers["X-Setup-Code"] = setupCode;
   const r = await fetch(path, { ...init, headers });
   if (r.status === 204) return undefined as T;
-  let body: { error?: string } = {};
+  let body: { error?: string; code?: string } = {};
   try { body = await r.json(); } catch { /* non-JSON error page */ }
+  if (!r.ok) checkSession(path, r.status, body);
   if (!r.ok) throw new ApiError(body.error ?? "Something went wrong. Please try again.", r.status, body);
   return body as T;
 }
@@ -123,8 +133,9 @@ const groupsPage = (p: GroupQuery = {}) =>
 async function putPhoto(path: string, blob: Blob): Promise<void> {
   const r = await fetch(path, { method: "PUT", headers: { "Content-Type": "image/jpeg", "X-Requested-With": "dapper" }, body: blob });
   if (!r.ok) {
-    let body: { error?: string } = {};
+    let body: { error?: string; code?: string } = {};
     try { body = await r.json(); } catch { /* not JSON */ }
+    checkSession(path, r.status, body);
     throw new ApiError(body.error ?? "The picture couldn't be saved.", r.status, body);
   }
 }
