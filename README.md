@@ -49,6 +49,12 @@ In the wizard use server `ldap://openldap:389`, service account `cn=admin,dc=exa
 existing administrators group `cn=dapper-admins,ou=groups,dc=example,dc=org`. Then sign in as **alice** /
 `alicepass` (administrator) or **bob** / `bobpass` (regular user). The demo server is for trying things out only.
 
+## Releases and upgrading
+
+Releases are tagged `vX.Y.Z` (see [CHANGELOG.md](CHANGELOG.md)) and published as a container image,
+`ghcr.io/koreesmith/dapper:<version>`. See [docs/upgrading.md](docs/upgrading.md) for upgrading and day-to-day
+operation, and [SECURITY.md](SECURITY.md) to report a vulnerability.
+
 ## Security notes
 
 - Passwords are verified by the directory itself; Dapper never stores them. Generated temporary

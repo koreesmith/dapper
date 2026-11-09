@@ -156,6 +156,7 @@ export const api = {
   refreshMemberOf: () => req<{ refreshedGroups: number }>("/api/admin/overlays/memberof/refresh", json("POST", { confirmed: true })),
 
   // first-run setup
+  version: () => req<{ version: string }>("/api/version"),
   setupStatus: () => req<{ configured: boolean }>("/api/setup/status"),
   setupDiscover: (s: SettingsIO) => req<Discovery>("/api/setup/discover", json("POST", s)),
   setupCheck: (s: SettingsIO) => req<{ ok: boolean; checks: Check[] }>("/api/setup/check", json("POST", s)),

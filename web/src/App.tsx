@@ -30,6 +30,12 @@ export function App() {
   return <Shell me={me} onSignOut={() => api.logout().then(() => { setMe(null); go("/"); })} />;
 }
 
+function VersionNote() {
+  const [v, setV] = useState("");
+  useEffect(() => { api.version().then((r) => setV(r.version)).catch(() => {}); }, []);
+  return v ? <footer className="version">Dapper {v}</footer> : null;
+}
+
 function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -56,6 +62,7 @@ function Login({ onSignedIn }: { onSignedIn: (m: Me) => void }) {
         {err && <p className="error" role="alert">{err}</p>}
         <button disabled={busy || !username || !password}>{busy ? "Signing in…" : "Sign in"}</button>
       </form>
+      <VersionNote />
     </>
   );
 }
@@ -108,6 +115,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
         <button onClick={onSignOut}>Sign out</button>
       </header>
       <div className="content">{view}</div>
+      <VersionNote />
     </div>
   );
 }

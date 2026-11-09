@@ -16,6 +16,9 @@ import (
 	"github.com/koreesmith/dapper/backend/internal/session"
 )
 
+// Version is the build's version, set from main.
+var Version = "dev"
+
 const cookieName = "dapper_session"
 
 type Server struct {
@@ -72,7 +75,10 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/setup/groups", s.setupGate(s.setupGroups))
 	mux.HandleFunc("POST /api/setup/people", s.setupGate(s.setupPeople))
 	mux.HandleFunc("POST /api/setup/complete", s.setupGate(s.setupComplete))
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]string{"status": "ok", "version": Version})
+	})
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"version": Version}) })
 
 	// Self-service: any signed-in user, limited to their own account and the field policy.
 	mux.HandleFunc("GET /api/me/profile", s.user(s.getProfile))
