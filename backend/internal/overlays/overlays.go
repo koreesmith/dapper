@@ -526,7 +526,8 @@ func buildAttrs(ctx Context, def Def, vals map[string]string, p *Plan, facts Fac
 				return nil, nil, inputError("“" + f + "” isn't a valid attribute name.")
 			}
 		}
-		set("olcRefintAttribute", strings.Join(fields, " "))
+		// One attribute name per value: OpenLDAP 2.6 warns that several names in one value will stop working.
+		set("olcRefintAttribute", fields...)
 		if ctx.PlaceholderDN != "" {
 			// When removing someone would empty a group, put Dapper's placeholder in so the group stays valid.
 			set("olcRefintNothing", ctx.PlaceholderDN)

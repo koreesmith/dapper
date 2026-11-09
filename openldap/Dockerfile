@@ -24,8 +24,9 @@ RUN apt-get update \
 
 COPY schema/ /usr/share/dapper-ldap/schema/
 COPY config.ldif.template /usr/share/dapper-ldap/config.ldif.template
-COPY entrypoint.sh healthcheck.sh /usr/local/bin/
-RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh
+COPY entrypoint.sh healthcheck.sh backup.sh backup-loop.sh restore.sh /usr/local/bin/
+RUN chmod 0755 /usr/local/bin/*.sh
+ENV DAPPER_LDAP_VERSION=${VERSION}
 
 # slapd's configuration, the directory data, TLS files, the one-time hand-off to Dapper, and backups.
 VOLUME ["/etc/ldap/slapd.d", "/var/lib/ldap", "/etc/ldap/tls", "/handoff", "/backups"]

@@ -8,7 +8,7 @@ IMG=${1:-}
 if [ -z "$IMG" ]; then IMG=dapper-ldap:test; docker build -q -t "$IMG" "$(dirname "$0")/../openldap" >/dev/null || exit 1; fi
 P=dapperldaptest$RANDOM; NET=$P-net; SRV=$P-srv
 PASS=0; FAIL=0
-cleanup() { docker rm -f "$SRV" >/dev/null 2>&1; docker network rm "$NET" >/dev/null 2>&1; docker volume rm "$P-c" "$P-d" "$P-t" "$P-h" >/dev/null 2>&1; }
+cleanup() { docker rm -f "$SRV" >/dev/null 2>&1; docker network rm "$NET" >/dev/null 2>&1; docker volume rm "$P-c" "$P-d" "$P-t" "$P-h" "$P-b" >/dev/null 2>&1; }
 trap cleanup EXIT
 ok() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "ok   $1"; else FAIL=$((FAIL+1)); echo "FAIL $1 (got '$2', want '$3')"; fi; }
 has() { if grep -q -- "$3" <<<"$2"; then PASS=$((PASS+1)); echo "ok   $1"; else FAIL=$((FAIL+1)); echo "FAIL $1 (no '$3' in: $(head -c 300 <<<"$2"))"; fi; }
@@ -16,7 +16,7 @@ has() { if grep -q -- "$3" <<<"$2"; then PASS=$((PASS+1)); echo "ok   $1"; else 
 docker network create "$NET" >/dev/null
 start() {
   docker run -d --name "$SRV" --network "$NET" --network-alias ldap.test -e LDAP_HOSTNAME=ldap.test \
-    -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-t":/etc/ldap/tls -v "$P-h":/handoff "$IMG" >/dev/null
+    -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-t":/etc/ldap/tls -v "$P-h":/handoff -v "$P-b":/backups -e LDAP_BACKUP_INTERVAL_HOURS=0 "$IMG" >/dev/null
   for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$SRV")" = healthy ] && return 0; sleep 1; done
   return 1
 }
@@ -92,5 +92,36 @@ has "data survives a restart" "$(cl 'ldapsearch -x -ZZ -H ldap://ldap.test -D cn
 ok "certificate is not remade on restart" "$(docker run --rm -v "$P-t":/t:ro --entrypoint sh "$IMG" -c 'sha256sum /t/tls.crt')" "$CERT1"
 ok "hand-off is not rewritten on restart" "$(docker run --rm -v "$P-h":/h:ro --entrypoint sh "$IMG" -c 'sha256sum /h/bootstrap.json')" "$HAND1"
 has "certificate has the server's name" "$(cl 'openssl x509 -in /tmp/ca.pem -noout -ext subjectAltName')" "ldap.test"
+
+
+# Backups: Dapper (group 10001) asks for one by creating a request file; the server makes it and reports.
+bk() { docker run --rm --user "${2:-0}" -v "$P-b":/b --entrypoint sh "$IMG" -c "$1" 2>&1; }
+bk 'touch /b/request' 10001:10001; ok "Dapper's group can ask for a backup" "$?" 0
+for _ in $(seq 1 30); do F=$(bk 'ls /b | grep "^dapper-ldap-manual-" | head -1'); [ -n "$F" ] && break; sleep 1; done
+has "a backup appears after the request" "$F" "dapper-ldap-manual-"
+has "status says when it last succeeded" "$(bk 'cat /b/status.json')" '"lastSuccess":"20'
+has "status has no error" "$(bk 'cat /b/status.json')" '"lastError":""'
+MAN=$(bk "tar -xzOf /b/$F ./manifest")
+has "backup lists the directory" "$MAN" "database1=dc=test,dc=lan"
+has "backup counts its entries" "$MAN" "entries1=3"
+has "backup holds the configuration" "$(bk "tar -tzf /b/$F")" "config.ldif"
+ok "the request file is removed" "$(bk 'ls /b/request 2>&1 | grep -c "No such"')" 1
+ok "Dapper's group can read the backup" "$(bk "head -c 2 /b/$F | wc -c" 10001:10001)" 2
+
+# Disaster: delete someone and change the configuration password, then restore.
+cl 'ldapdelete -x -ZZ -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw cn=new,dc=test,dc=lan' >/dev/null
+has "(damage done: the entry is gone)" "$(cl 'ldapsearch -x -ZZ -LLL -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw -b dc=test,dc=lan -s sub "(cn=new)" dn; echo')" "^$"
+docker stop "$SRV" >/dev/null
+RES=$(docker run --rm -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-t":/etc/ldap/tls -v "$P-h":/handoff -v "$P-b":/backups "$IMG" restore "$F" 2>&1)
+has "restore reports the directory restored" "$RES" "restored dc=test,dc=lan"
+has "restore saved the current state first" "$(bk 'ls /b')" "dapper-ldap-pre-restore-"
+docker start "$SRV" >/dev/null
+for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$SRV")" = healthy ] && break; sleep 1; done
+has "the deleted person is back" "$(cl 'ldapsearch -x -ZZ -LLL -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw -b dc=test,dc=lan "(cn=new)" dn')" "dn: cn=new,dc=test,dc=lan"
+has "their password still works" "$(cl 'ldapwhoami -x -ZZ -H ldap://ldap.test -D cn=new,dc=test,dc=lan -w newsecret')" "cn=new,dc=test,dc=lan"
+has "the old SSHA password still works" "$(cl 'ldapwhoami -x -ZZ -H ldap://ldap.test -D cn=old,dc=test,dc=lan -w oldsecret')" "cn=old,dc=test,dc=lan"
+has "the configuration login still works" "$(cl 'ldapwhoami $CFG -ZZ -H ldap://ldap.test')" "cn=config-admin,cn=config"
+has "overlays came back with the configuration" "$(cl 'ldapsearch $CFG -LLL -ZZ -H ldap://ldap.test -b "cn=module{0},cn=config" olcModuleLoad')" "memberof"
+ok "restore left the certificate alone" "$(docker run --rm -v "$P-t":/t:ro --entrypoint sh "$IMG" -c 'sha256sum /t/tls.crt')" "$CERT1"
 
 echo; echo "passed $PASS, failed $FAIL"; [ "$FAIL" = 0 ]

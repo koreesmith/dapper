@@ -110,6 +110,12 @@ export interface CertView { subject: string; issuer: string; notBefore: string; 
 export interface CAState { set: boolean; error?: string; cert?: CertView; pem?: string }
 export interface ConnectInfo { dapperRun: boolean; host?: string; suffix?: string; ldapPort?: string; ldapsPort?: string; certificate?: string; cert?: CertView }
 
+export interface BackupItem { name: string; kind: "scheduled" | "manual" | "pre-restore"; time: string; size: number }
+export interface BackupsState {
+  enabled: boolean; message?: string; backups?: BackupItem[]; problem?: string; requested?: boolean;
+  status?: { lastAttempt: number; lastSuccess: string; lastError: string; intervalHours: number; keep: number; dataBytes: number; diskFreeBytes: number; image: string };
+}
+
 let setupCode = "";
 export const setSetupCode = (c: string) => { setupCode = c; };
 
@@ -239,6 +245,9 @@ export const api = {
 
   ca: () => req<CAState>("/api/admin/ca"),
   setCA: (pem: string) => req<CAState>("/api/admin/ca", json("PUT", { pem })),
+  backups: () => req<BackupsState>("/api/admin/backups"),
+  backupNow: () => req<{ requested: boolean }>("/api/admin/backups", { method: "POST" }),
+  backupUrl: (name: string) => `/api/admin/backups/download?name=${encodeURIComponent(name)}`,
   connectInfo: () => req<ConnectInfo>("/api/admin/connect"),
 
   // first-run setup

@@ -43,6 +43,19 @@ req b PUT /api/admin/ca "$(python3 -c "import json,sys;print(json.dumps({'pem':s
 req b GET /api/admin/settings; SET=$BODY
 req b PUT /api/admin/settings "$(python3 -c "import json,sys;print(json.dumps(json.loads(sys.argv[1])['settings']))" "$SET")"; expect "saving settings works" "$CODE" 200
 req b GET /api/admin/connect; expect "saving settings keeps the connect info" "$(jq_ "d['dapperRun']")" True
+req b GET /api/admin/backups; expect "backups are available" "$(jq_ "d['enabled']")" True
+expect "the schedule is reported" "$(jq_ "d['status']['intervalHours']")" 24
+req b POST /api/admin/backups; expect "asking for a backup is accepted" "$CODE" 202
+for _ in $(seq 1 30); do req b GET /api/admin/backups; [ "$(jq_ "len(d['backups'])")" -ge 1 ] && break; sleep 1; done
+expect "a backup is listed" "$(jq_ "d['backups'][0]['kind']")" manual
+BK=$(jq_ "d['backups'][0]['name']")
+expect "no problem is reported with a fresh backup" "$(jq_ "d['problem']")" ""
+req b GET "/api/admin/backups/download?name=$BK"; expect "download needs the server settings unlocked" "$CODE" 403
+req b POST /api/admin/overlays/unlock "{\"dn\":\"cn=config-admin,cn=config\",\"password\":\"$CFG\"}"; expect "server settings unlock" "$CODE" 200
+curl -s -o "$J/bk.tgz" -w '%{http_code}' -b "$J/b" "$BASE/api/admin/backups/download?name=$BK" >"$J/code"; expect "download works once unlocked" "$(cat "$J/code")" 200
+expect "the download is the backup archive" "$(tar -tzf "$J/bk.tgz" 2>/dev/null | grep -c 'config.ldif')" 1
+req b GET "/api/admin/backups/download?name=../../etc/passwd"; expect "odd file names are refused" "$CODE" 400
+req c GET /api/admin/backups; expect "backup list needs a sign-in" "$CODE" 401
 req c GET /api/admin/connect; expect "connect info needs a sign-in" "$CODE" 401
 
 echo; echo "passed $PASS, failed $FAIL"; [ "$FAIL" = 0 ]

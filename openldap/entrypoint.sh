@@ -9,6 +9,9 @@ HANDOFF=/handoff
 HOST=${LDAP_HOSTNAME:-localhost}
 NAMES=${LDAP_TLS_NAMES:-}     # extra certificate names, comma separated
 
+# "restore <backup>" is run as a one-off container, with the server stopped.
+if [ "${1:-}" = restore ]; then shift; exec /usr/local/bin/restore.sh "$@"; fi
+
 log() { echo "dapper-ldap: $*" >&2; }
 secret() { openssl rand -base64 32 | tr -d '/+=\n' | cut -c1-32; }
 
@@ -53,4 +56,5 @@ if [ ! -f "$CONF/cn=config.ldif" ]; then
   log "first start done; the logins are in $HANDOFF/bootstrap.json for Dapper"
 fi
 
+/usr/local/bin/backup-loop.sh &
 exec slapd -h "ldap:/// ldaps:/// ldapi://%2Frun%2Fslapd%2Fldapi" -F "$CONF" -d "${LDAP_LOG_LEVEL:-stats}"

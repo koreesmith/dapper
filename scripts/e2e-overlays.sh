@@ -81,7 +81,7 @@ expect "refint's settings are cleared" "$(cfgval olcRefintConfig olcRefintAttrib
 expect "the state says off" "$(state refint)" False
 apply refint disable '{}'; check "turning off twice is refused" 400
 apply refint enable '{"attributes":"member memberOf"}'; check "turn refint back on" 200
-expect "refint is configured again" "$(cfgval olcRefintConfig olcRefintAttribute)" 1
+expect "refint is configured again (one attribute name per value)" "$(cfgval olcRefintConfig olcRefintAttribute)" 2
 expect "refint keeps Dapper's placeholder for emptied groups" "$(cfgsearch "(objectClass=olcRefintConfig)" olcRefintNothing | grep -c 'dapper-placeholder')" 1
 apply refint update '{"attributes":"member; drop"}'; check "bad attribute names are rejected" 400
 

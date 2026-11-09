@@ -47,3 +47,49 @@ never set up again.
 ## Testing the image
 
 `scripts/e2e-ldap-image.sh` builds the image and checks all of the above, including that data survives a restart.
+
+## Backups
+
+The server backs itself up every day (`LDAP_BACKUP_INTERVAL_HOURS`, `0` turns the schedule off) and keeps the newest
+14 (`LDAP_BACKUP_KEEP`). Each backup is one `.tar.gz` in the `ldap-backups` volume holding the server's
+configuration and every directory as LDIF, plus a short manifest. Backups hold **every password hash**, so treat
+copies like passwords.
+
+On the Server page, **Backups** lists them, shows when the last one succeeded (and warns when it's overdue or
+failed), and has **Back up now**. Dapper has no Docker access, so it asks by leaving a request file in the backups
+volume, and the server makes the backup within a few seconds. Downloading a backup needs the server settings
+unlocked as well as an administrator sign-in, and is recorded in Activity.
+
+Keep a copy somewhere other than this machine. The volume lives on the same disk as the directory, so it won't
+help if the disk is lost. To copy the newest backups out:
+
+```sh
+docker run --rm -v dapper_ldap-backups:/b -v "$PWD":/out alpine sh -c 'cp /b/dapper-ldap-*.tar.gz /out/'
+```
+
+(The volume name starts with your Compose project name, usually the folder name.)
+
+## Restoring
+
+Restoring puts the directory back exactly as it was when the backup was made; later changes are lost, and people
+can't sign in while it runs. Dapper can't stop the server itself, so run these where Dapper is installed (the Server
+page shows them with your chosen backup filled in):
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.server.yml stop openldap
+docker compose -f docker-compose.yml -f docker-compose.server.yml run --rm openldap restore dapper-ldap-manual-20261109-120000.tar.gz
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d
+```
+
+Before it replaces anything, restore saves the current state as a `pre-restore` backup, so it can be undone the same
+way. The certificate is left alone. To bring a backup from another machine, copy the file into the `ldap-backups`
+volume first.
+
+## Upgrading the server image
+
+1. Make a backup (Server → Backups → **Back up now**) and download or copy it somewhere safe.
+2. Pull or rebuild, then recreate only the server: `docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build openldap`.
+   The data, configuration and certificate live in volumes, so they carry over.
+3. Check the Server page: the directory should answer and Dapper should still sign people in.
+
+If something is wrong, put the old image back and restore the backup from step 1.

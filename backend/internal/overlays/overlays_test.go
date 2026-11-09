@@ -175,7 +175,7 @@ func TestRefintUsesDapperPlaceholder(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := p.LDIF("config")
-	if !strings.Contains(l, "olcRefintAttribute: member memberOf") || !strings.Contains(l, "olcRefintNothing: cn=dapper-placeholder,ou=groups,dc=example,dc=org") {
+	if !strings.Contains(l, "olcRefintAttribute: member\n") || !strings.Contains(l, "olcRefintAttribute: memberOf\n") || !strings.Contains(l, "olcRefintNothing: cn=dapper-placeholder,ou=groups,dc=example,dc=org") {
 		t.Errorf("refint ldif:\n%s", l)
 	}
 }

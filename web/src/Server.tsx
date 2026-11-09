@@ -3,6 +3,7 @@ import { api, ApiError, ConnectInfo, OverlayParam, OverlayPreview, OverlayState,
 import { Modal, Notice } from "./ui";
 import { ServerSettings } from "./ServerSettings";
 import { ConnectHelp } from "./Connect";
+import { Backups } from "./Backups";
 
 const HELP_LDIF = `dn: olcDatabase={0}config,cn=config
 changetype: modify
@@ -51,6 +52,7 @@ export function Server() {
           <ConnectHelp host={connect.host} suffix={connect.suffix} certificate={connect.certificate} cert={connect.cert} ldapPort={connect.ldapPort} ldapsPort={connect.ldapsPort} />
         </details>
       )}
+      {connect?.dapperRun && <Backups unlocked={state.unlocked} />}
       {done && <Notice kind="ok">{done.text}{done.backup && <> A copy of the previous configuration was saved (<a href={`/api/admin/overlays/backup?name=${encodeURIComponent(done.backup)}`}>download {done.backup}</a>).</>}</Notice>}
 
       {state.unlocked ? (

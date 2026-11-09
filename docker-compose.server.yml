@@ -13,6 +13,8 @@ services:
     environment:
       LDAP_HOSTNAME: ${LDAP_HOSTNAME:-localhost}   # put in the certificate so clients can verify it
       LDAP_TLS_NAMES: ${LDAP_TLS_NAMES:-}          # more names for the certificate, comma separated
+      LDAP_BACKUP_INTERVAL_HOURS: ${LDAP_BACKUP_INTERVAL_HOURS:-24}   # 0 turns scheduled backups off
+      LDAP_BACKUP_KEEP: ${LDAP_BACKUP_KEEP:-14}                        # how many backups to keep
     ports:
       # Other machines connect here. Both need an encrypted connection: 389 (StartTLS) and 636 (LDAPS).
       - "${LDAP_BIND:-0.0.0.0}:${LDAP_PORT:-389}:389"
@@ -34,7 +36,7 @@ services:
         condition: service_healthy
     volumes:
       - ldap-handoff:/handoff
-      - ldap-backups:/backups:ro
+      - ldap-backups:/backups   # Dapper lists and downloads backups, and asks for one by leaving a request file
 
 volumes:
   ldap-config:
