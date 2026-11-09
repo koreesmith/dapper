@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, BundledResult, BundledStatus, SettingsIO, SetupAdmin } from "./api";
 import { blankSettings, Patch, PasswordSessionFields, UnixFields } from "./SettingsParts";
 import { Notice, SecretBox } from "./ui";
+import { ConnectHelp } from "./Connect";
 
 const STEPS = ["Your server", "Your directory", "Linux accounts", "Administrator", "Review"];
 const COMPOSE = "docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build";
@@ -149,23 +150,9 @@ export function SetupNew({ onBack, onDone }: { onBack: () => void; onDone: () =>
   );
 }
 
-function download(name: string, text: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], { type: "application/x-pem-file" }));
-  a.download = name; a.click();
-  URL.revokeObjectURL(a.href);
-}
-
 /** Shown once when the new server is set up: its passwords and how to connect to it. */
 function Ready({ r, onDone }: { r: BundledResult; onDone: () => void }) {
   const host = r.host || "localhost";
-  const sssd = `[domain/default]
-id_provider = ldap
-auth_provider = ldap
-ldap_uri = ldaps://${host}
-ldap_search_base = ${r.suffix}
-ldap_tls_cacert = /etc/pki/ca-trust/source/anchors/dapper-ldap.crt
-ldap_tls_reqcert = demand`;
   return (
     <div className="wizard">
       <div className="panel">
@@ -179,15 +166,7 @@ ldap_tls_reqcert = demand`;
         <SecretBox value={r.configPassword} />
 
         <h3>Connecting your Linux servers and applications</h3>
-        <ul>
-          <li>Address: <code>ldaps://{host}</code> (port 636), or <code>ldap://{host}</code> (port 389) with StartTLS. Unencrypted connections are refused.</li>
-          <li>Directory name (search base): <code>{r.suffix}</code></li>
-        </ul>
-        <p>The server uses its own certificate, so each machine has to trust it. <button type="button" onClick={() => download("dapper-ldap.crt", r.certificate)}>Download the certificate</button></p>
-        <p className="sub">On Red Hat, Rocky or AlmaLinux: copy it to <code>/etc/pki/ca-trust/source/anchors/dapper-ldap.crt</code> and run <code>sudo update-ca-trust</code>. On Debian or Ubuntu: copy it to <code>/usr/local/share/ca-certificates/dapper-ldap.crt</code> and run <code>sudo update-ca-certificates</code>.</p>
-        <p>A starting point for <code>/etc/sssd/sssd.conf</code>:</p>
-        <pre className="code">{sssd}</pre>
-        <p className="sub">Signed-in people can read the directory, and so can anyone who can reach the server and connects over an encrypted connection. You can tighten this later under Server.</p>
+        <ConnectHelp host={host} suffix={r.suffix} certificate={r.certificate} />
 
         <div className="formactions"><button className="primary" onClick={onDone}>Go to sign in</button></div>
       </div>

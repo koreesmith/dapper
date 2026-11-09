@@ -29,4 +29,20 @@ req a GET /api/setup/status; expect "Dapper is configured" "$(jq_ "d['configured
 req b POST /api/login '{"username":"alice","password":"correct horse battery"}'; expect "first administrator signs in" "$CODE" 200
 expect "and is an administrator" "$(jq_ "d['isAdmin']")" True
 req b GET /api/admin/users; expect "people list works" "$CODE" 200
+
+# Connection help and the trusted certificate (admin only).
+req b GET /api/admin/connect; expect "connect info says Dapper runs the server" "$(jq_ "d['dapperRun'], d['host'], d['suffix']")" "(True, 'ldap.test', 'dc=test,dc=lan')"
+expect "connect info carries the certificate" "$(jq_ "'BEGIN CERTIFICATE' in d['certificate']")" True
+GOODPEM=$(jq_ "d['certificate']")
+req b GET /api/admin/ca; expect "trusted certificate is described" "$(jq_ "d['set'], 'ldap.test' in d['cert']['names']")" "(True, True)"
+req b PUT /api/admin/ca '{"pem":"not a certificate"}'; expect "garbage certificate refused" "$CODE" 400
+OTHER=$(openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2 -subj /CN=other -keyout /dev/null 2>/dev/null)
+req b PUT /api/admin/ca "$(python3 -c "import json,sys;print(json.dumps({'pem':sys.argv[1]}))" "$OTHER")"; expect "a certificate the server doesn't use is refused" "$CODE" 400
+req b GET /api/admin/users; expect "Dapper still reaches the directory after the refusal" "$CODE" 200
+req b PUT /api/admin/ca "$(python3 -c "import json,sys;print(json.dumps({'pem':sys.argv[1]}))" "$GOODPEM")"; expect "the right certificate is accepted" "$CODE" 200
+req b GET /api/admin/settings; SET=$BODY
+req b PUT /api/admin/settings "$(python3 -c "import json,sys;print(json.dumps(json.loads(sys.argv[1])['settings']))" "$SET")"; expect "saving settings works" "$CODE" 200
+req b GET /api/admin/connect; expect "saving settings keeps the connect info" "$(jq_ "d['dapperRun']")" True
+req c GET /api/admin/connect; expect "connect info needs a sign-in" "$CODE" 401
+
 echo; echo "passed $PASS, failed $FAIL"; [ "$FAIL" = 0 ]

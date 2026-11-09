@@ -300,6 +300,7 @@ func (s *Server) setupBundledApply(w http.ResponseWriter, r *http.Request) {
 	// The base entry, as the directory manager, once the database answers.
 	cfg := s.candidate(st)
 	cfg.LDAP.CAFile = s.caPath()
+	cfg.LDAP.PublicHost = h.Host
 	svc, err := dialSvc(cfg)
 	if err != nil {
 		fail(w, http.StatusBadGateway, "The new directory was created, but Dapper couldn't sign in to it: "+err.Error()+".")

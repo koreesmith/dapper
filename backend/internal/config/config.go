@@ -43,6 +43,7 @@ type LDAP struct {
 	URL          string `yaml:"url"`
 	StartTLS     bool   `yaml:"startTLS"`
 	SkipVerify   bool   `yaml:"skipVerify"`
+	PublicHost   string `yaml:"publicHost"`   // the name other machines use to reach a Dapper-run directory server
 	CAFile       string `yaml:"caFile"`       // certificate (PEM) Dapper trusts for the directory, e.g. a Dapper-run server's own
 	BindDN       string `yaml:"bindDN"`       // the service account
 	BindPassword string `yaml:"bindPassword"` // never sent to the browser

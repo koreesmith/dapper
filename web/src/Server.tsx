@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, OverlayParam, OverlayPreview, OverlayState, OverlayView } from "./api";
+import { api, ApiError, ConnectInfo, OverlayParam, OverlayPreview, OverlayState, OverlayView } from "./api";
 import { Modal, Notice } from "./ui";
 import { ServerSettings } from "./ServerSettings";
+import { ConnectHelp } from "./Connect";
 
 const HELP_LDIF = `dn: olcDatabase={0}config,cn=config
 changetype: modify
@@ -20,6 +21,14 @@ export function Server() {
   const [dialog, setDialog] = useState<{ o: OverlayView; action: "enable" | "update" | "disable" } | null>(null);
   const [done, setDone] = useState<{ text: string; backup?: string } | null>(null);
 
+  const [connect, setConnect] = useState<ConnectInfo | null>(null);
+  useEffect(() => {
+    api.connectInfo().then((c) => {
+      setConnect(c);
+      if (c.dapperRun) setDn("cn=config-admin,cn=config"); // the login a Dapper-run server is created with
+    }).catch(() => setConnect(null));
+  }, []);
+
   const load = () => api.overlays().then((d) => { setState(d); if (d.unlockError) setErr(d.unlockError); })
     .catch((x) => setErr((x as Error).message));
   useEffect(() => { load(); }, []);
@@ -35,6 +44,13 @@ export function Server() {
     <div className="page narrow">
       <h2>Server features</h2>
       <p className="sub">Switch on directory server features such as group membership lists and password rules with a few clicks. Every change is explained and previewed first, and a copy of the server's current configuration is saved before anything changes.</p>
+      {connect?.dapperRun && connect.host && connect.suffix && (
+        <details className="panel" open>
+          <summary><strong>Connect your machines</strong></summary>
+          <p className="sub">What Linux servers and applications need to use this directory server.</p>
+          <ConnectHelp host={connect.host} suffix={connect.suffix} certificate={connect.certificate} cert={connect.cert} ldapPort={connect.ldapPort} ldapsPort={connect.ldapsPort} />
+        </details>
+      )}
       {done && <Notice kind="ok">{done.text}{done.backup && <> A copy of the previous configuration was saved (<a href={`/api/admin/overlays/backup?name=${encodeURIComponent(done.backup)}`}>download {done.backup}</a>).</>}</Notice>}
 
       {state.unlocked ? (

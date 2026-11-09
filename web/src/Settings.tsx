@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, Check, Field, SettingsIO } from "./api";
 import { AdminGroupField, AdvancedFields, Checks, ConnectionFields, LayoutFields, Locked, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
 import { Modal, Notice } from "./ui";
+import { TrustedCertificate } from "./Connect";
 
 type Msg = { kind: "ok" | "error"; text: string } | null;
 
@@ -75,6 +76,8 @@ export function Settings() {
         </div>
         <p className="sub">Settings are tested before they're saved, and a change that would lock you out of the admin screens is refused.</p>
       </form>
+
+      <TrustedCertificate />
 
       {dirty && (
         <div className="savebar" role="region" aria-label="Unsaved changes">

@@ -26,6 +26,9 @@ services:
     restart: unless-stopped
 
   dapper:
+    environment:
+      LDAP_PORT: ${LDAP_PORT:-389}     # only so Dapper can show the right ports on its "Connect your machines" page
+      LDAPS_PORT: ${LDAPS_PORT:-636}
     depends_on:
       openldap:
         condition: service_healthy

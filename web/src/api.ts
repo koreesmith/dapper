@@ -106,6 +106,10 @@ export interface BundledResult {
   managerDN: string; managerPassword: string; certificate: string;
 }
 
+export interface CertView { subject: string; issuer: string; notBefore: string; notAfter: string; daysLeft: number; expired: boolean; names: string[]; selfSigned: boolean }
+export interface CAState { set: boolean; error?: string; cert?: CertView; pem?: string }
+export interface ConnectInfo { dapperRun: boolean; host?: string; suffix?: string; ldapPort?: string; ldapsPort?: string; certificate?: string; cert?: CertView }
+
 let setupCode = "";
 export const setSetupCode = (c: string) => { setupCode = c; };
 
@@ -232,6 +236,10 @@ export const api = {
 
   activity: (p: { q: string; category: string; page: number }) =>
     req<ActivityPage>(`/api/admin/audit?q=${encodeURIComponent(p.q)}&category=${p.category}&page=${p.page}&pageSize=50`),
+
+  ca: () => req<CAState>("/api/admin/ca"),
+  setCA: (pem: string) => req<CAState>("/api/admin/ca", json("PUT", { pem })),
+  connectInfo: () => req<ConnectInfo>("/api/admin/connect"),
 
   // first-run setup
   version: () => req<{ version: string }>("/api/version"),
