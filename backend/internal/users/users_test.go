@@ -34,6 +34,8 @@ func TestSearch(t *testing.T) {
 		"carol corp":    1,
 		"nobody":        0,
 		"alice builder": 0, // every term must match the same person
+		"bk555":         0, // a name with letters doesn't match phone digits
+		"alice 555":     1, // but a digits-only term still does, alongside a name
 	}
 	for q, want := range cases {
 		if got := List(sample(), Query{Search: q}).Total; got != want {

@@ -116,7 +116,9 @@ func (u User) matchTerm(term string) bool {
 			return true
 		}
 	}
-	if d := onlyDigits(term); len(d) >= 3 {
+	// A term that looks like a phone number (digits and punctuation only) also matches phone numbers however
+	// they are written. A name like "bk555" has letters, so its digits mustn't match every 555 number.
+	if d := onlyDigits(term); len(d) >= 3 && !strings.ContainsFunc(term, unicode.IsLetter) {
 		for _, p := range u.digits {
 			if strings.Contains(p, d) {
 				return true
