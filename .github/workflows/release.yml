@@ -1,7 +1,7 @@
 name: Release
 
 # Runs when a version tag such as v1.0.0 is pushed: tests, builds the container image for amd64 and
-# arm64, publishes it to the GitHub Container Registry, and creates the GitHub release.
+# arm64 (the same for the directory server image in openldap/), publishes them to the GitHub Container Registry, and creates the GitHub release.
 on:
   push:
     tags: ["v*"]
@@ -44,6 +44,17 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.v.outputs.version }}
             ghcr.io/${{ github.repository }}:latest
+
+      - name: Build and publish the directory server image
+        uses: docker/build-push-action@v6
+        with:
+          context: openldap
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ steps.v.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository }}-ldap:${{ steps.v.outputs.version }}
+            ghcr.io/${{ github.repository }}-ldap:latest
 
       - name: Create the GitHub release
         uses: softprops/action-gh-release@v2

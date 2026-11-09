@@ -31,6 +31,22 @@ jobs:
       - name: Type-check and build
         run: cd web && npm run build
 
+  ldap-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the directory server image
+        run: docker build -t dapper-ldap:ci openldap
+      - name: Smoke test (first start, TLS required, overlays, passwords, restart)
+        run: ./scripts/e2e-ldap-image.sh dapper-ldap:ci
+      - name: Scan for known vulnerabilities (fixed ones only)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: dapper-ldap:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
   integration:
     runs-on: ubuntu-latest
     needs: [backend, web]
