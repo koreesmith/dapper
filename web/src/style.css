@@ -217,3 +217,8 @@ th.check, td.check { width: 32px; padding-right: 0 !important; }
 
 .savebar { position: sticky; bottom: 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-top: 2px solid var(--primary); margin-top: 12px; }
 .savebar span { flex: 1; min-width: 12rem; }
+
+/* setup: choose between an existing server and a new one */
+.choices { display: grid; gap: .75rem; margin: 1rem 0; }
+.choice { display: grid; gap: .25rem; text-align: left; padding: 1rem; border: 1px solid var(--control-border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.choice:hover, .choice:focus-visible { border-color: var(--control-border); }

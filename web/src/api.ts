@@ -96,6 +96,16 @@ export interface Discovery {
   unix?: { detected: boolean; accounts: number; highestUID: number; homePattern?: string; defaultShell?: string; shells?: string[] };
 }
 
+export interface BundledStatus { found: boolean; reachable?: boolean; host?: string; message?: string }
+export interface BundledRequest {
+  organization: string; domain: string; settings: SettingsIO; admin: SetupAdmin;
+  features: { memberOf: boolean; refint: boolean }; confirmed?: boolean;
+}
+export interface BundledResult {
+  ok: boolean; suffix: string; host: string; configDN: string; configPassword: string;
+  managerDN: string; managerPassword: string; certificate: string;
+}
+
 let setupCode = "";
 export const setSetupCode = (c: string) => { setupCode = c; };
 
@@ -231,6 +241,9 @@ export const api = {
   setupGroups: (s: SettingsIO) => req<{ groups: FoundGroup[]; suggest: { objectClass?: string; memberAttribute?: string } }>("/api/setup/groups", json("POST", s)),
   setupPeople: (s: SettingsIO, q: string) => req<{ people: FoundPerson[] }>("/api/setup/people", json("POST", { settings: s, q })),
   createContainer: (dn: string) => req("/api/admin/settings/containers", json("POST", { dn })),
+  bundledStatus: () => req<BundledStatus>("/api/setup/bundled/status"),
+  bundledPreview: (b: BundledRequest) => req<{ suffix: string; plan: string[] }>("/api/setup/bundled/preview", json("POST", b)),
+  bundledApply: (b: BundledRequest) => req<BundledResult>("/api/setup/bundled/apply", json("POST", { ...b, confirmed: true })),
   setupComplete: (b: { settings: SettingsIO; createContainers: boolean; confirmed: boolean; admin: SetupAdmin }) =>
     req<{ ok: boolean }>("/api/setup/complete", json("POST", b)),
 

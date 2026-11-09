@@ -3,6 +3,7 @@ import { api, ApiError, Check, Discovery, FoundGroup, FoundPerson, SetupAdmin, S
 import { AdminGroupField, blankSettings, Checks, ConnectionFields, LayoutFields, PasswordSessionFields, Patch, UnixFields } from "./SettingsParts";
 import { Notice } from "./ui";
 import { ThemePicker } from "./ThemePicker";
+import { SetupNew } from "./SetupNew";
 
 const STEPS = ["Setup code", "Your directory", "Where things live", "Linux accounts", "Administrators", "Review"];
 const FIX_STEP: Record<string, number> = { connect: 1, people: 2, groups: 2, suspended: 2, unix: 3, admin: 4 };
@@ -24,6 +25,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
   const [groups, setGroups] = useState<FoundGroup[]>([]);
   const [people, setPeople] = useState<FoundPerson[]>([]);
   const [confirmed, setConfirmed] = useState(false);
+  const [mode, setMode] = useState<"" | "existing" | "new">(""); // asked after the setup code
   const seq = useRef(0);
 
   const patch: Patch = (section, values) => setS((cur) => ({ ...cur, [section]: { ...cur[section], ...values } }));
@@ -140,6 +142,33 @@ export function Setup({ onDone }: { onDone: () => void }) {
     );
   }
 
+  if (step >= 1 && mode === "new") {
+    return <><div className="corner"><ThemePicker /></div><SetupNew onBack={() => { setMode(""); }} onDone={onDone} /></>;
+  }
+  if (step === 1 && mode === "") {
+    return (
+      <div className="wizard">
+        <div className="corner"><ThemePicker /></div>
+        <h1>Set up Dapper</h1>
+        <div className="panel">
+          <h2>Do you already have an LDAP server?</h2>
+          <p className="sub">Dapper can manage a directory you already run, or run a new one for you.</p>
+          <div className="choices">
+            <button type="button" className="choice" onClick={() => setMode("existing")}>
+              <strong>I already have an LDAP server</strong>
+              <span className="sub">Connect Dapper to it. Nothing about your server changes unless you approve it.</span>
+            </button>
+            <button type="button" className="choice" onClick={() => setMode("new")}>
+              <strong>I need a new one</strong>
+              <span className="sub">Dapper runs a new OpenLDAP server for you, in a container next to Dapper, and sets it up with you.</span>
+            </button>
+          </div>
+          <div className="formactions"><button onClick={() => setStep(0)}>Back</button></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="wizard">
       <div className="corner"><ThemePicker /></div>
@@ -175,7 +204,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
             {checks.length > 0 && <Checks checks={checks} />}
             {err && <Notice kind="error">{err}</Notice>}
             <div className="formactions">
-              <button onClick={() => { setErr(""); setChecks([]); setStep(0); }}>Back</button>
+              <button onClick={() => { setErr(""); setChecks([]); setMode(""); }}>Back</button>
               <button className="primary" disabled={busy || !s.ldap.url || !s.ldap.bindDN || !s.ldap.bindPassword} onClick={connect}>{busy ? "Connecting…" : "Connect"}</button>
             </div>
           </>

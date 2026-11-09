@@ -14,6 +14,17 @@ Set `LDAP_HOSTNAME` in `.env` first (see `.env.example`) to the name your server
 example `ldap.example.com`. It is written into the server's certificate. Changing it later means making a new
 certificate.
 
+## Setting it up
+
+Open Dapper, enter the setup code, and choose **I need a new one**. Dapper finds the server, asks for your
+organization and domain (the domain becomes the directory's name, so `example.org` gives `dc=example,dc=org`),
+whether you use Linux accounts, and the first administrator. It lists everything it will create and waits for your
+approval. At the end it shows two generated passwords **once**: the directory manager's (Dapper keeps this one so it
+can work) and the configuration administrator's (Dapper never stores it; you enter it on the Server page). It also
+shows the address, the certificate to trust and a starting `sssd.conf` for your Linux machines.
+
+Choose **I already have an LDAP server** instead to connect Dapper to a directory you run yourself.
+
 ## What you get
 
 - OpenLDAP 2.6 with the memberOf, refint, ppolicy, unique, auditlog, lastbind and syncprov overlays available, and
