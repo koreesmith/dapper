@@ -40,7 +40,7 @@ jobs:
       - name: Smoke test (first start, TLS required, overlays, passwords, restart)
         run: ./scripts/e2e-ldap-image.sh dapper-ldap:ci
       - name: Scan for known vulnerabilities (fixed ones only)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: dapper-ldap:ci
           severity: CRITICAL,HIGH
