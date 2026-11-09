@@ -81,6 +81,9 @@ func (s *Server) fieldValues(e *ldapclient.Entry, keep func(policy.Field) bool) 
 		if f.Feature == "unix" && !hasObjectClass(e, "posixAccount") {
 			continue
 		}
+		if f.Type == "photo" {
+			continue // handled by the photo endpoints, not as text
+		}
 		if keep(f) {
 			v := e.Values(f.Attr)
 			if v == nil {
@@ -116,6 +119,7 @@ func (s *Server) getUser(w http.ResponseWriter, r *http.Request, sess *session.S
 			"dn": dn, "username": u.Username, "name": u.Name,
 			"suspended": u.Suspended || s.isSuspendedDN(dn),
 			"ou":        parentDN(dn),
+			"hasPhoto":  len(e.Values(photoField)) > 0,
 			"isSelf":    strings.EqualFold(dn, sess.DN),
 			"fields":    s.fieldValues(e, func(policy.Field) bool { return true }),
 			"groups":    groups,
@@ -165,7 +169,7 @@ func (s *Server) buildChanges(cur *ldapclient.Entry, in map[string][]string, all
 		if !ok {
 			return nil, validationError("Unknown field: " + attr)
 		}
-		if f.ReadOnly {
+		if f.ReadOnly || f.Type == "photo" {
 			return nil, forbiddenError(f.Label + " can't be changed here.")
 		}
 		if f.Feature == "unix" && !hasObjectClass(cur, "posixAccount") {

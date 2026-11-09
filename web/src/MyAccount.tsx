@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, Me, PasswordPolicy, Profile } from "./api";
+import { PhotoPanel } from "./Photo";
 import { changedAttrs, FieldEditor, FormState, initialValues, Notice, StrengthMeter } from "./ui";
 
 export function MyAccount({ me }: { me: Me }) {
@@ -7,6 +8,7 @@ export function MyAccount({ me }: { me: Me }) {
   const [form, setForm] = useState<FormState>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pv, setPv] = useState(0);
 
   const load = () => api.profile().then((d) => { setP(d); setForm(initialValues(d.fields)); })
     .catch((x) => setMsg({ kind: "error", text: (x as Error).message }));
@@ -23,6 +25,9 @@ export function MyAccount({ me }: { me: Me }) {
     <div className="page narrow">
       <h2>My account</h2>
       <div className="sub">Signed in as {p.username || me.name}</div>
+
+      <PhotoPanel name={p.name} src={api.photoUrl(null, pv)} has={!!p.hasPhoto} canChange={!!p.canChangePhoto}
+        onSet={api.setOwnPhoto} onRemove={api.removeOwnPhoto} onChanged={() => { setPv(pv + 1); load(); }} />
 
       <form className="panel" onSubmit={async (e) => {
         e.preventDefault(); setSaving(true); setMsg(null);

@@ -91,6 +91,11 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("PATCH /api/me/profile", s.user(s.updateProfile))
 	mux.HandleFunc("POST /api/me/password", s.user(s.changeOwnPassword))
 	mux.HandleFunc("GET /api/me/password-policy", s.user(s.myPasswordPolicy))
+	mux.HandleFunc("GET /api/photo", s.user(s.getPhoto))
+	mux.HandleFunc("PUT /api/me/photo", s.user(s.putOwnPhoto))
+	mux.HandleFunc("DELETE /api/me/photo", s.user(s.deleteOwnPhoto))
+	mux.HandleFunc("PUT /api/admin/user/photo", s.admin(s.putUserPhoto))
+	mux.HandleFunc("DELETE /api/admin/user/photo", s.admin(s.deleteUserPhoto))
 
 	// Administration of people, groups and settings.
 	mux.HandleFunc("GET /api/admin/users", s.admin(s.listUsers))

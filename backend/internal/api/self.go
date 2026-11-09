@@ -33,8 +33,10 @@ func (s *Server) getProfile(w http.ResponseWriter, _ *http.Request, sess *sessio
 		}
 		resp = map[string]any{
 			"dn": sess.DN, "username": first(e.Values("uid")), "name": name,
-			"fields": s.fieldValues(e, func(f policy.Field) bool { return f.UserVisible }),
-			"groups": groups,
+			"fields":         s.fieldValues(e, func(f policy.Field) bool { return f.UserVisible }),
+			"groups":         groups,
+			"hasPhoto":       len(e.Values(photoField)) > 0,
+			"canChangePhoto": s.photoEditable(),
 		}
 		return nil
 	}) {
@@ -128,3 +130,5 @@ func (s *Server) changeOwnPassword(w http.ResponseWriter, r *http.Request, sess 
 	audit(sess, "password.change", sess.DN)
 	writeJSON(w, map[string]string{"status": "ok"})
 }
+
+func (s *Server) photoEditable() bool { f, ok := s.field(photoField); return ok && f.UserEditable }

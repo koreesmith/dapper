@@ -23,11 +23,11 @@ export interface UserQuery { q: string; sort: string; dir: "asc" | "desc"; statu
 
 export type GroupKind = "shared" | "linux" | "personal";
 export interface PersonDetail {
-  dn: string; username: string; name: string; suspended: boolean; isSelf: boolean; ou?: string;
+  dn: string; username: string; name: string; suspended: boolean; isSelf: boolean; ou?: string; hasPhoto?: boolean;
   fields: FieldValue[]; groups: { dn: string; name: string; kind: GroupKind; primary?: boolean }[];
 }
 export interface Unit { dn: string; name: string; parent?: string; depth: number; people: number; children: number; root?: boolean }
-export interface Profile { dn: string; username: string; name: string; fields: FieldValue[]; groups: string[] }
+export interface Profile { dn: string; username: string; name: string; fields: FieldValue[]; groups: string[]; hasPhoto?: boolean; canChangePhoto?: boolean }
 export interface GroupSummary { dn: string; name: string; kind: GroupKind; gid?: string; members: number; admin?: boolean }
 export interface GroupPage { groups: GroupSummary[]; total: number; page: number; pageSize: number; counts: Partial<Record<GroupKind, number>> }
 export interface GroupQuery { kind?: string; q?: string; page?: number; pageSize?: number }
@@ -109,6 +109,15 @@ const json = (method: string, body: unknown) => ({ method, body: JSON.stringify(
 const groupsPage = (p: GroupQuery = {}) =>
   req<GroupPage>(`/api/admin/groups?kind=${p.kind ?? ""}&q=${encodeURIComponent(p.q ?? "")}&page=${p.page ?? 1}&pageSize=${p.pageSize ?? 25}`);
 
+async function putPhoto(path: string, blob: Blob): Promise<void> {
+  const r = await fetch(path, { method: "PUT", headers: { "Content-Type": "image/jpeg", "X-Requested-With": "dapper" }, body: blob });
+  if (!r.ok) {
+    let body: { error?: string } = {};
+    try { body = await r.json(); } catch { /* not JSON */ }
+    throw new ApiError(body.error ?? "The picture couldn't be saved.", r.status, body);
+  }
+}
+
 export const api = {
   login: (username: string, password: string) => req<Me>("/api/login", json("POST", { username, password })),
   logout: () => req<void>("/api/logout", { method: "POST" }),
@@ -136,6 +145,13 @@ export const api = {
   deletePerson: (dn: string) => req(`/api/admin/user?${q(dn)}`, { method: "DELETE" }),
   resetPassword: (dn: string, password?: string) =>
     req<{ temporaryPassword?: string }>(`/api/admin/user/password?${q(dn)}`, json("POST", { password: password ?? "" })),
+
+  // profile photos
+  photoUrl: (dn: string | null, v: number) => `/api/photo?${dn ? q(dn) + "&" : ""}v=${v}`,
+  setOwnPhoto: (b: Blob) => putPhoto("/api/me/photo", b),
+  removeOwnPhoto: () => req("/api/me/photo", { method: "DELETE" }),
+  setPhoto: (dn: string, b: Blob) => putPhoto(`/api/admin/user/photo?${q(dn)}`, b),
+  removePhoto: (dn: string) => req(`/api/admin/user/photo?${q(dn)}`, { method: "DELETE" }),
 
   // units (sections of the people container)
   units: () => req<{ units: Unit[]; baseDN: string }>("/api/admin/ous"),

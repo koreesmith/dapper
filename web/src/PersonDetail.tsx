@@ -4,6 +4,7 @@ import { unitLabel } from "./Units";
 import { KIND_LABEL } from "./Groups";
 import { changedAttrs, FieldEditor, FormState, initialValues, Modal, Notice, SecretBox } from "./ui";
 import { go, href } from "./router";
+import { PhotoPanel } from "./Photo";
 
 export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
   const [p, setP] = useState<Person | null>(null);
@@ -13,6 +14,7 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
   const [dialog, setDialog] = useState<"reset" | "delete" | null>(null);
   const [allGroups, setAllGroups] = useState<GroupSummary[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [pv, setPv] = useState(0);
 
   const load = useCallback(() => api.person(dn).then((d) => {
     setP(d); setForm(initialValues(d.fields));
@@ -62,6 +64,9 @@ export function PersonDetail({ dn, me }: { dn: string; me: Me }) {
         </div>
       </div>
       {p.suspended && <p className="sub">This account is suspended and can't sign in. Restore it to let them back in.</p>}
+
+      <PhotoPanel name={p.name} src={api.photoUrl(p.dn, pv)} has={!!p.hasPhoto} canChange
+        onSet={(b) => api.setPhoto(p.dn, b)} onRemove={() => api.removePhoto(p.dn)} onChanged={() => { setPv(pv + 1); load(); }} />
 
       <form className="panel" onSubmit={save}>
         <h3>Details</h3>

@@ -41,6 +41,7 @@ var defaults = []Field{
 	{Attr: "l", Label: "City", Type: "text", UserVisible: true, UserEditable: true},
 	{Attr: "st", Label: "State / province", Type: "text", UserVisible: true, UserEditable: true},
 	{Attr: "postalCode", Label: "Postal code", Type: "text", UserVisible: true, UserEditable: true},
+	{Attr: "jpegPhoto", Label: "Profile photo", Type: "photo", UserVisible: true, UserEditable: true},
 	{Attr: "description", Label: "Notes (admins only)", Type: "textarea"},
 	// Unix login details (shown only when Unix accounts are turned on).
 	{Attr: "uidNumber", Label: "User ID (UID)", Type: "text", Feature: "unix", ReadOnly: true, UserVisible: true},
