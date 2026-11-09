@@ -3,9 +3,11 @@ package ldapclient
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -18,6 +20,7 @@ type Server struct {
 	URL        string // ldap://host:389 or ldaps://host:636
 	StartTLS   bool
 	SkipVerify bool
+	CAFile     string // PEM file with the certificate(s) to trust instead of the system ones
 }
 
 // Entry is a directory entry with multi-valued attributes.
@@ -41,6 +44,17 @@ type Client struct {
 // Dial connects (with optional StartTLS) but does not bind.
 func Dial(srv Server) (*Client, error) {
 	tlsCfg := &tls.Config{InsecureSkipVerify: srv.SkipVerify, ServerName: hostOf(srv.URL)} //nolint:gosec // skipping verification is an explicit operator choice
+	if srv.CAFile != "" {
+		pem, err := os.ReadFile(srv.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read the trusted certificate: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("the trusted certificate file %s has no certificate in it", srv.CAFile)
+		}
+		tlsCfg.RootCAs = pool
+	}
 	conn, err := ldap.DialURL(srv.URL, ldap.DialWithTLSConfig(tlsCfg))
 	if err != nil {
 		return nil, fmt.Errorf("connect: %w", err)

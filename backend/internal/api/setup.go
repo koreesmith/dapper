@@ -163,29 +163,59 @@ func (s *Server) setupComplete(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "Please approve the changes Dapper will make to your directory before finishing setup.")
 		return
 	}
+	checks, err := s.finishSetup(cfg, in.CreateContainers, in.Admin)
+	var inc setupIncomplete
+	var saveErr setupSaveError
+	switch {
+	case errors.As(err, &inc):
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": inc.Error(), "checks": inc.checks})
+	case errors.As(err, &saveErr):
+		fail(w, http.StatusInternalServerError, capitalize(saveErr.Error())+".")
+	case errors.Is(err, errSetupConnect):
+		fail(w, http.StatusBadGateway, "Couldn't connect with the service account. Go back and check the server settings.")
+	case err != nil:
+		failLDAP(w, err)
+	default:
+		writeJSON(w, map[string]any{"ok": true, "checks": checks})
+	}
+}
+
+var errSetupConnect = errors.New("couldn't connect with the service account")
+
+type setupSaveError struct{ error }
+
+func (e setupSaveError) Error() string { return "couldn't save the settings: " + e.error.Error() }
+
+// setupIncomplete means the final checks still found something wrong, so nothing was saved.
+type setupIncomplete struct{ checks []check }
+
+func (setupIncomplete) Error() string {
+	return "Something still isn't right, so setup wasn't finished."
+}
+
+// finishSetup creates what is missing in the directory (containers, administrators group, first
+// administrator), re-checks everything, and only then saves the settings and ends setup. The caller has
+// already validated cfg and had the person approve the changes.
+func (s *Server) finishSetup(cfg *config.Config, createContainers bool, admin setupAdmin) ([]check, error) {
 	c, err := dialSvc(cfg)
 	if err != nil {
-		fail(w, http.StatusBadGateway, "Couldn't connect with the service account. Go back and check the server settings.")
-		return
+		return nil, errSetupConnect
 	}
 	defer c.Close()
 
-	if in.CreateContainers {
+	if createContainers {
 		for _, dn := range []string{cfg.Users.BaseDN, cfg.Groups.BaseDN, cfg.Users.SuspendedBaseDN} {
 			if dn == "" {
 				continue
 			}
 			if err := ensureOU(c, dn); err != nil {
-				failLDAP(w, err)
-				return
+				return nil, err
 			}
 		}
 	}
-
-	if in.Admin.Mode == "person" || in.Admin.Mode == "new" {
-		if err := s.createFirstAdmin(c, cfg, in.Admin); err != nil {
-			failLDAP(w, err)
-			return
+	if admin.Mode == "person" || admin.Mode == "new" {
+		if err := s.createFirstAdmin(c, cfg, admin); err != nil {
+			return nil, err
 		}
 	}
 
@@ -194,12 +224,10 @@ func (s *Server) setupComplete(w http.ResponseWriter, r *http.Request) {
 		cc.Close()
 	}
 	if !allOK(checks) {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "Something still isn't right, so setup wasn't finished.", "checks": checks})
-		return
+		return nil, setupIncomplete{checks}
 	}
 	if err := s.store.Save(cfg); err != nil {
-		fail(w, http.StatusInternalServerError, "Couldn't save the settings: "+err.Error())
-		return
+		return nil, setupSaveError{err}
 	}
 	s.sessions.SetTimeouts(cfg.Session.IdleTimeout, cfg.Session.MaxAge)
 	s.setupMu.Lock()
@@ -207,7 +235,7 @@ func (s *Server) setupComplete(w http.ResponseWriter, r *http.Request) {
 	s.setupMu.Unlock()
 	audit(nil, "setup.complete", cfg.LDAP.URL)
 	log.Printf("setup complete: now managed through the web UI")
-	writeJSON(w, map[string]any{"ok": true, "checks": checks})
+	return checks, nil
 }
 
 // createFirstAdmin makes sure the administrators group exists and has a first member.

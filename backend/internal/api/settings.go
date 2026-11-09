@@ -132,7 +132,7 @@ func rdnParts(dn string) (attr, value string) {
 }
 
 func dialSvc(cfg *config.Config) (*ldapclient.Client, error) {
-	c, err := ldapclient.Dial(ldapclient.Server{URL: cfg.LDAP.URL, StartTLS: cfg.LDAP.StartTLS, SkipVerify: cfg.LDAP.SkipVerify})
+	c, err := ldapclient.Dial(ldapclient.Server{URL: cfg.LDAP.URL, StartTLS: cfg.LDAP.StartTLS, SkipVerify: cfg.LDAP.SkipVerify, CAFile: cfg.LDAP.CAFile})
 	if err != nil {
 		return nil, err
 	}

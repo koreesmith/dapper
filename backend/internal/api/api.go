@@ -57,7 +57,7 @@ func (s *Server) c() *config.Config { return s.store.Get() }
 // server returns how to reach the directory, from the current configuration.
 func (s *Server) server() ldapclient.Server {
 	c := s.c()
-	return ldapclient.Server{URL: c.LDAP.URL, StartTLS: c.LDAP.StartTLS, SkipVerify: c.LDAP.SkipVerify}
+	return ldapclient.Server{URL: c.LDAP.URL, StartTLS: c.LDAP.StartTLS, SkipVerify: c.LDAP.SkipVerify, CAFile: c.LDAP.CAFile}
 }
 
 // SetupToken is the code needed to run the setup wizard, or "" once configured.
@@ -78,6 +78,9 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
 	mux.HandleFunc("POST /api/setup/discover", s.setupGate(s.setupDiscover))
 	mux.HandleFunc("POST /api/setup/check", s.setupGate(s.setupCheck))
+	mux.HandleFunc("GET /api/setup/bundled/status", s.setupGate(s.setupBundledStatus))
+	mux.HandleFunc("POST /api/setup/bundled/preview", s.setupGate(s.setupBundledPreview))
+	mux.HandleFunc("POST /api/setup/bundled/apply", s.setupGate(s.setupBundledApply))
 	mux.HandleFunc("POST /api/setup/groups", s.setupGate(s.setupGroups))
 	mux.HandleFunc("POST /api/setup/people", s.setupGate(s.setupPeople))
 	mux.HandleFunc("POST /api/setup/complete", s.setupGate(s.setupComplete))
