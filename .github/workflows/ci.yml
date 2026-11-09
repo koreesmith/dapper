@@ -81,3 +81,5 @@ jobs:
       - name: Logs on failure
         if: failure()
         run: $COMPOSE logs
+      - name: Server settings (schemas, indexes, access rules, TLS) tests
+        run: ./scripts/e2e-server.sh

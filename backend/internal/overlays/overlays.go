@@ -166,6 +166,27 @@ func catalog(ctx Context) []Def {
 					Hint: "The server's slapd user must be allowed to write here."},
 			},
 		},
+		{
+			ID: "lastbind", Name: "Last sign-in time (lastbind)", module: "lastbind", class: "olcLastBindConfig",
+			Summary: "Records when each person last signed in, in an authTimestamp attribute on their entry.",
+			Why:     "Lets you find accounts nobody uses any more, before deciding whether to suspend or remove them.",
+			Warning: "This overlay is a contributed extra: many server packages don't include it, and turning it on will fail if yours doesn't. It cannot be switched off while the server is running. Every sign-in becomes a write to the directory.",
+			Params: []Param{
+				{Key: "precision", Label: "Only record a new time when the last one is older than (seconds)", Type: "number", Default: "3600", Min: 0, Max: 604800,
+					Hint: "A larger number means fewer writes. 3600 records at most one sign-in per person per hour."},
+			},
+		},
+		{
+			ID: "syncprov", Name: "Allow this server to be copied (syncprov)", module: "syncprov", class: "olcSyncProvConfig",
+			Summary: "Lets other directory servers keep an up-to-date copy of this one (replication). It is the first step of setting up a replica.",
+			Why:     "Replication gives you a second server to fall back on, or one nearer to your other sites.",
+			Warning: "This alone doesn't create a replica: the other server still has to be set up to copy from this one. It cannot be switched off while the server is running.",
+			Params: []Param{
+				{Key: "checkpointOps", Label: "Save a checkpoint after this many changes", Type: "number", Default: "100", Min: 1, Max: 1000000, Advanced: true},
+				{Key: "checkpointMins", Label: "or after this many minutes", Type: "number", Default: "10", Min: 1, Max: 100000, Advanced: true},
+				{Key: "sessionlog", Label: "Remember this many recent changes for replicas that fall behind", Type: "number", Default: "100", Min: 0, Max: 1000000, Advanced: true},
+			},
+		},
 	}
 }
 
@@ -276,6 +297,16 @@ func Values(id string, o *Overlay, policy map[string][]string) map[string]string
 		v["attrs"] = strings.Join(attrs, ",")
 	case "auditlog":
 		v["file"] = first(attr(o, "olcAuditlogFile"))
+	case "lastbind":
+		v["precision"] = first(attr(o, "olcLastBindPrecision"))
+		if v["precision"] == "" {
+			v["precision"] = "0"
+		}
+	case "syncprov":
+		if f := strings.Fields(first(attr(o, "olcSpCheckpoint"))); len(f) == 2 {
+			v["checkpointOps"], v["checkpointMins"] = f[0], f[1]
+		}
+		v["sessionlog"] = first(attr(o, "olcSpSessionlog"))
 	}
 	return v
 }
@@ -535,6 +566,31 @@ func buildAttrs(ctx Context, def Def, vals map[string]string, p *Plan, facts Fac
 		if err := policyOps(ctx, def, vals, p, facts, set); err != nil {
 			return nil, nil, err
 		}
+	case "lastbind":
+		n, err := intVal(vals, param("precision"))
+		if err != nil {
+			return nil, nil, err
+		}
+		set("olcLastBindPrecision", strconv.Itoa(n))
+		p.Summary = append(p.Summary, fmt.Sprintf("Record each person's last sign-in time, at most once every %d seconds.", n))
+	case "syncprov":
+		ops, err := intVal(vals, param("checkpointOps"))
+		if err != nil {
+			return nil, nil, err
+		}
+		mins, err := intVal(vals, param("checkpointMins"))
+		if err != nil {
+			return nil, nil, err
+		}
+		log, err := intVal(vals, param("sessionlog"))
+		if err != nil {
+			return nil, nil, err
+		}
+		set("olcSpCheckpoint", fmt.Sprintf("%d %d", ops, mins))
+		if log > 0 {
+			set("olcSpSessionlog", strconv.Itoa(log))
+		}
+		p.Summary = append(p.Summary, fmt.Sprintf("Let replicas copy this server. A checkpoint is saved every %d changes or %d minutes.", ops, mins))
 	}
 	return attrs, mods, nil
 }

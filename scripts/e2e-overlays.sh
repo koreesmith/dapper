@@ -40,7 +40,7 @@ cfgval() { cfgsearch "(objectClass=$1)" "$2" | grep -c "^$2:"; }
 
 # --- locked: nothing is known, but the catalog is there ---
 req adm GET /api/admin/overlays
-expect "locked: catalog lists the overlays" "$(jq_ "sorted(o['id'] for o in d['overlays'])")" "['auditlog', 'memberof', 'ppolicy', 'refint', 'unique']"
+expect "locked: catalog lists the overlays" "$(jq_ "sorted(o['id'] for o in d['overlays'])")" "['auditlog', 'lastbind', 'memberof', 'ppolicy', 'refint', 'syncprov', 'unique']"
 expect "locked: state is unknown, not guessed" "$(jq_ "d['unlocked']==False and all(o['enabled'] is None for o in d['overlays'])")" True
 req adm POST /api/admin/overlays/preview '{"overlay":"auditlog","action":"enable","values":{"file":"/tmp/x.ldif"}}'
 check "locked: preview still works (commands to run by hand)" 200

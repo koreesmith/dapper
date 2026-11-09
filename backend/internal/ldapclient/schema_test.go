@@ -1,6 +1,9 @@
 package ldapclient
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseObjectClassNames(t *testing.T) {
 	got := ParseObjectClassNames([]string{
@@ -42,5 +45,17 @@ func TestIsSecretAttr(t *testing.T) {
 		if IsSecretAttr(ok) {
 			t.Errorf("%s is not secret", ok)
 		}
+	}
+}
+
+func TestSyncreplCredentialsAreHidden(t *testing.T) {
+	in := `rid=001 provider=ldap://a searchbase="dc=x" bindmethod=simple binddn="cn=r,dc=x" credentials=s3cret type=refreshOnly`
+	got := syncreplSecret.ReplaceAllString(in, "${1}=<hidden>")
+	if strings.Contains(got, "s3cret") || !strings.Contains(got, "credentials=<hidden>") || !strings.Contains(got, "type=refreshOnly") {
+		t.Fatalf("unexpected: %s", got)
+	}
+	quoted := syncreplSecret.ReplaceAllString(`bindpw="a b c" rid=1`, "${1}=<hidden>")
+	if strings.Contains(quoted, "a b c") {
+		t.Fatalf("quoted secret survived: %s", quoted)
 	}
 }

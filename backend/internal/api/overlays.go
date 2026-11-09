@@ -494,13 +494,14 @@ func friendlyOverlayError(err error, id string) (int, string) {
 var backupNameRE = regexp.MustCompile(`^cn-config-[0-9]{8}-[0-9]{6}\.ldif$`)
 
 func ldifEntry(e ldapclient.Entry) string {
+	delete(e.Attrs, "olcSyncrepl") // shown masked elsewhere; a backup must never hold a masked copy of the real value
 	p := overlays.Plan{Ops: []overlays.Op{{Target: "config", Kind: "add", DN: e.DN, Attrs: e.Attrs}}}
 	return strings.Replace(p.LDIF("config"), "changetype: add\n", "", 1)
 }
 
 // backupConfig writes the affected parts of cn=config (the database's settings and overlays, and the
 // module list) to the data directory, so a change can be undone by hand.
-func (s *Server) backupConfig(cc *ldapclient.Client, st *overlays.State) (string, error) {
+func (s *Server) backupConfig(cc *ldapclient.Client, st *overlays.State, extra ...string) (string, error) {
 	var b strings.Builder
 	b.WriteString("# Saved by Dapper before changing the directory server's configuration.\n")
 	b.WriteString("# Restore with: sudo ldapmodify -Y EXTERNAL -H ldapi:/// (review first).\n# Password hashes and other secrets are deliberately left out.\n\n")
@@ -516,6 +517,9 @@ func (s *Server) backupConfig(cc *ldapclient.Client, st *overlays.State) (string
 		for _, e := range es {
 			b.WriteString(ldifEntry(e) + "\n")
 		}
+	}
+	for _, x := range extra {
+		b.WriteString(x + "\n")
 	}
 	dir := filepath.Join(s.c().DataDir, "backups")
 	if err := os.MkdirAll(dir, 0o700); err != nil {

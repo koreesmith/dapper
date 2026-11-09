@@ -27,6 +27,17 @@ export interface PersonDetail {
   fields: FieldValue[]; groups: { dn: string; name: string; kind: GroupKind; primary?: boolean }[];
 }
 export interface Unit { dn: string; name: string; parent?: string; depth: number; people: number; children: number; root?: boolean }
+export interface CertInfo { subject: string; issuer: string; notBefore: string; notAfter: string; daysLeft: number; expired: boolean; names: string[]; selfSigned: boolean }
+export interface ServerConfig {
+  database: string; suffix: string; rootDN: string; serviceAccount: string;
+  schemas: string[]; sshKeysSchema: boolean;
+  indexes: { raw: string; attrs: string[]; types: string[] }[];
+  acl: string[];
+  tls: { cert: string; key: string; ca: string; ciphers?: string; served?: CertInfo; servedError?: string };
+  replication: { serverID: string[]; syncrepl: string[]; mirrorMode: boolean; provider: boolean; contextCSN: string[] };
+}
+export interface ServerChange { kind: string; attr?: string; types?: string[]; rules?: string[]; cert?: string; key?: string; ca?: string; confirmed?: boolean }
+export interface ServerPreview { summary: string[]; warnings: string[]; ldif: string }
 export interface Profile { dn: string; username: string; name: string; fields: FieldValue[]; groups: string[]; hasPhoto?: boolean; canChangePhoto?: boolean }
 export interface GroupSummary { dn: string; name: string; kind: GroupKind; gid?: string; members: number; admin?: boolean }
 export interface GroupPage { groups: GroupSummary[]; total: number; page: number; pageSize: number; counts: Partial<Record<GroupKind, number>> }
@@ -152,6 +163,11 @@ export const api = {
   removeOwnPhoto: () => req("/api/me/photo", { method: "DELETE" }),
   setPhoto: (dn: string, b: Blob) => putPhoto(`/api/admin/user/photo?${q(dn)}`, b),
   removePhoto: (dn: string) => req(`/api/admin/user/photo?${q(dn)}`, { method: "DELETE" }),
+
+  // more server settings
+  serverConfig: () => req<ServerConfig>("/api/admin/server/config"),
+  previewServer: (c: ServerChange) => req<ServerPreview>("/api/admin/server/preview", json("POST", c)),
+  applyServer: (c: ServerChange) => req<{ ok: boolean; backup: string }>("/api/admin/server/apply", json("POST", { ...c, confirmed: true })),
 
   // units (sections of the people container)
   units: () => req<{ units: Unit[]; baseDN: string }>("/api/admin/ous"),

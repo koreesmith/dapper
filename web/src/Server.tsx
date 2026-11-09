@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, OverlayParam, OverlayPreview, OverlayState, OverlayView } from "./api";
 import { Modal, Notice } from "./ui";
+import { ServerSettings } from "./ServerSettings";
 
 const HELP_LDIF = `dn: olcDatabase={0}config,cn=config
 changetype: modify
@@ -81,6 +82,8 @@ export function Server() {
           </div>
         </div>
       ))}
+
+      {state.unlocked && <ServerSettings onDone={(text, backup) => { setDone({ text, backup }); window.scrollTo({ top: 0 }); }} />}
 
       {dialog && (
         <OverlayDialog state={state} o={dialog.o} action={dialog.action} onClose={() => setDialog(null)}

@@ -112,11 +112,22 @@ func (c *Client) Close() {
 	}
 }
 
+var syncreplSecret = regexp.MustCompile(`(?i)\b(credentials|bindpw)=("[^"]*"|\S+)`)
+
 func toEntries(res *ldap.SearchResult) []Entry {
 	out := make([]Entry, 0, len(res.Entries))
 	for _, e := range res.Entries {
 		a := map[string][]string{}
 		for _, at := range e.Attributes {
+			if strings.EqualFold(at.Name, "olcSyncrepl") {
+				// Shown so replication can be seen, with the credentials hidden. Backups leave it out entirely.
+				vals := make([]string, len(at.Values))
+				for i, v := range at.Values {
+					vals[i] = syncreplSecret.ReplaceAllString(v, "${1}=<hidden>")
+				}
+				a[at.Name] = vals
+				continue
+			}
 			if IsSecretAttr(at.Name) {
 				continue // never send password data to the browser or write it to a backup
 			}
