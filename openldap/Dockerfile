@@ -9,8 +9,10 @@ LABEL org.opencontainers.image.title="Dapper OpenLDAP server" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 
-# slapd-contrib carries the lastbind overlay. Packages come from the pinned Debian release.
+# slapd-contrib carries the lastbind overlay. Packages come from the pinned Debian release. The upgrade
+# brings in security fixes published since the base image was built.
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends slapd slapd-contrib ldap-utils openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/* /etc/ldap/slapd.d/* /var/lib/ldap/* \
  # Group 10001 is Dapper's group: it lets Dapper read the first-start hand-off file (and nothing else).
