@@ -1,0 +1,52 @@
+# First-start configuration. Placeholders in @AT@ signs are filled in by entrypoint.sh.
+# There is deliberately no directory database here: Dapper's guided setup adds it, so the
+# person chooses the name of their directory in the web page.
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcArgsFile: /run/slapd/slapd.args
+olcPidFile: /run/slapd/slapd.pid
+olcToolThreads: 1
+olcTLSCertificateFile: /etc/ldap/tls/tls.crt
+olcTLSCertificateKeyFile: /etc/ldap/tls/tls.key
+@TLSCA@
+olcTLSProtocolMin: 3.3
+# Connections over the local socket (health checks, tools in this container) count as protected.
+olcLocalSSF: 256
+
+dn: cn=module{0},cn=config
+objectClass: olcModuleList
+cn: module{0}
+olcModulePath: /usr/lib/ldap
+olcModuleLoad: back_mdb
+olcModuleLoad: memberof
+olcModuleLoad: refint
+olcModuleLoad: ppolicy
+olcModuleLoad: unique
+olcModuleLoad: auditlog
+olcModuleLoad: lastbind
+olcModuleLoad: syncprov
+
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+include: file:///etc/ldap/schema/core.ldif
+include: file:///etc/ldap/schema/cosine.ldif
+include: file:///etc/ldap/schema/inetorgperson.ldif
+include: file:///etc/ldap/schema/nis.ldif
+include: file:///usr/share/dapper-ldap/schema/openssh-lpk.ldif
+
+# Everything needs an encrypted connection: no passwords or entries travel in the clear.
+dn: olcDatabase={-1}frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: {-1}frontend
+olcSecurity: ssf=128
+
+dn: olcDatabase={0}config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: {0}config
+olcRootDN: @CONFIGDN@
+olcRootPW: @CONFIGPW@
+olcAccess: {0}to * by dn.exact="gidNumber=@GID@+uidNumber=@UID@,cn=peercred,cn=external,cn=auth" manage by * none
