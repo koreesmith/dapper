@@ -10,7 +10,7 @@
   color-scheme: dark;
   --bg: #0f1720; --surface: #17212c; --text: #e4ebf2; --muted: #9fb0c1;
   --border: #2a3a4a; --control-border: #5f7488;
-  --primary: #6fa3cf; --primary-hover: #8bb8de; --on-primary: #0b1722;
+  --primary: #7cadd6; --primary-hover: #8bb8de; --on-primary: #0b1722;
   --selected: #22384d; --danger: #ff8a80; --focus: #8bb8de; --warn: #e3b04b;
 }
 :root[data-theme="sepia"] {
@@ -133,7 +133,11 @@ textarea { font: inherit; }
   .field, .facts, .grid2 { grid-template-columns: 1fr; }
   .layout { grid-template: "t" auto "a" auto "m" 1fr / 1fr; }
   header { flex-wrap: wrap; }
-  table.users { display: block; overflow-x: auto; }
+  header nav { flex-wrap: wrap; width: 100%; order: 10; }
+  .list-tools { flex-wrap: wrap; }
+  .list-tools input:not([type="checkbox"]), .list-tools select { max-width: 100%; }
+  .content { min-width: 0; }
+  table.users { display: block; overflow-x: auto; max-width: 100%; }
 }
 
 .panel > button, .panel > a.btn { align-self: flex-start; }

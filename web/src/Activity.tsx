@@ -69,7 +69,7 @@ export function Activity() {
         </label>
       </div>
       {err && <Notice kind="error">{err}</Notice>}
-      <table className="users">
+      <table className="users" tabIndex={0} aria-label="Activity">
         <thead><tr><th>When</th><th>Who</th><th>What</th><th>About</th><th>Details</th></tr></thead>
         <tbody>
           {data?.events.map((e, i) => (
