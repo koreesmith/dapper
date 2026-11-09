@@ -3,7 +3,10 @@
 #   docker compose logs dapper
 services:
   dapper:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: ${DAPPER_VERSION:-dev}   # shown in the page footer; set it in .env (see .env.example)
     ports:
       # Set these in a .env file (see .env.example):
       #   DAPPER_PORT  the port to publish on this server (default 8080)

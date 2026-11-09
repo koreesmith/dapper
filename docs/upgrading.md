@@ -21,6 +21,12 @@ docker run --rm -v dapper-data:/data -v "$PWD":/backup alpine tar czf /backup/da
 Release notes are in [CHANGELOG.md](../CHANGELOG.md). Anything that needs your attention when upgrading is called
 out there.
 
+### The footer says "Dapper dev"
+
+That is what an image shows when it was built without a version. Building with `docker compose up -d --build`
+doesn't know which release you checked out, so set `DAPPER_VERSION=1.0.0` in `.env` (matching the release) and
+build again. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
+
 ## Things to know when running it
 
 - **One instance.** Sessions are kept in memory, so run a single copy. Restarting Dapper signs everyone out; nothing
