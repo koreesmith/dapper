@@ -1,0 +1,10 @@
+{
+  "name": "dapper-browser-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for Dapper's pages (Playwright), including accessibility scans in all three themes",
+  "dependencies": {
+    "@axe-core/playwright": "4.10.1",
+    "playwright": "1.49.1"
+  }
+}

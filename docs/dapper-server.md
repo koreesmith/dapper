@@ -93,3 +93,15 @@ volume first.
 3. Check the Server page: the directory should answer and Dapper should still sign people in.
 
 If something is wrong, put the old image back and restore the backup from step 1.
+
+## Running it for real
+
+- **Name and DNS.** Point a DNS name (for example `ldap.example.com`) at the machine and set `LDAP_HOSTNAME` to it
+  before the first start, so the certificate carries that name. Changing it later means making a new certificate.
+- **Firewall.** Open only the ports your Linux machines need to reach: 636 (LDAPS) and/or 389 (StartTLS). Dapper
+  itself reaches the server over the private Compose network, so it doesn't need them. `LDAP_BIND` can limit which
+  address they listen on.
+- **Backups.** Copy backups off the machine regularly (see above); the volume shares the disk with the directory.
+- **Dapper's own page.** Put Dapper behind an HTTPS reverse proxy as described in [production.md](production.md).
+- **Your own certificate.** Put `tls.crt` and `tls.key` (and `ca.crt` for a chain) in the `ldap-tls` volume before the
+  first start; clients then don't need to trust a self-signed certificate.

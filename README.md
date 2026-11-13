@@ -18,6 +18,9 @@ manage users **without knowing LDAP**. The first release targets **OpenLDAP**.
 - An **Activity** page: a searchable record of sign-ins and administrative actions
 - **Server features:** switch on memberOf, password rules and lockout, duplicate prevention, change logging, last sign-in and replication with a few clicks (OpenLDAP overlays), plus schemas, indexes, access rules and the TLS certificate, each previewed first with a backup saved
 - Choose which details people can see and change about themselves
+- **No LDAP server yet? Dapper can run one for you:** an OpenLDAP server in its own container, set up through the
+  same wizard, encrypted connections only, with scheduled backups, one-click restore steps and ready-made
+  settings for your Linux machines ([docs/dapper-server.md](docs/dapper-server.md))
 - An **Advanced** view for working with raw LDAP entries when you need to
 
 Light, Dark and Sepia themes. Everything is built to work with your existing server: nothing
@@ -46,11 +49,30 @@ You need Docker. Five minutes, no LDAP knowledge required.
    (needs the server's configuration login, see [docs/server-features.md](docs/server-features.md)).
 
 Put Dapper behind an HTTPS reverse proxy for real use ([docs/production.md](docs/production.md)).
+
+### No LDAP server yet?
+
+Let Dapper run one. This starts Dapper **and** a new OpenLDAP server:
+
+1. **Name the server.** Copy `.env.example` to `.env` and set `LDAP_HOSTNAME` to the name your other machines will
+   use to reach it (for example `ldap.example.com`). It goes into the server's certificate.
+2. **Start both:**
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
+   docker compose -f docker-compose.yml -f docker-compose.server.yml logs dapper | grep -i "setup code"
+   ```
+3. **Open <http://localhost:8080>**, enter the setup code and choose **I need a new one**. Give your organization
+   and domain, create the first administrator, and approve the list of what Dapper will create.
+4. **Save the two passwords** shown at the end (they appear only once), then follow the on-screen steps to trust the
+   server's certificate and point your Linux machines at it.
+
+Backups run daily and appear on the **Server** page; see [docs/dapper-server.md](docs/dapper-server.md) for restoring
+and upgrading.
 Just want to look around? See "Just want to look around?" below for a throwaway demo server.
 
 ## Getting started
 
-Needs Docker. This starts **only Dapper**; it never starts or installs an LDAP server for you.
+Needs Docker. This starts **only Dapper**, for use with an LDAP server you already have. To have Dapper run a directory server for you as well, see "No LDAP server yet?" above.
 
 ```sh
 git clone https://github.com/koreesmith/dapper && cd dapper

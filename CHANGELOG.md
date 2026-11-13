@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.0.0
+
+Dapper can now run your directory server too. Everything from 1.0.0 still works unchanged with a server you run
+yourself.
+
+### A directory server run by Dapper
+- **Choose at setup:** "I already have an LDAP server" (the 1.0.0 steps, unchanged) or "I need a new one".
+- **New image:** `ghcr.io/koreesmith/dapper-ldap`, OpenLDAP 2.6 on Debian, built by us and scanned for known
+  vulnerabilities in CI. It includes the memberOf, refint, ppolicy, unique, auditlog, lastbind and syncprov overlays
+  and the core, cosine, inetorgperson, nis and openssh-lpk schemas. New passwords are stored as Argon2; hashes from
+  elsewhere (for example `{SSHA}`) keep working.
+- **`docker-compose.server.yml`** runs Dapper and the server together (the 1.0.0 `docker-compose.yml` is unchanged).
+  Settings go in `.env` (`LDAP_HOSTNAME`, `LDAP_TLS_NAMES`, ports, backup schedule).
+- **Encrypted connections only:** a self-signed certificate is made on first start (or bring your own); plain,
+  unencrypted binds are refused.
+- **Guided setup:** name your organization and domain, create the first administrator, choose server features, review
+  and approve what will be created. Passwords are generated and shown once.
+- **Connect your machines:** address, directory name, the certificate to trust and a starting `sssd.conf`, on the
+  final setup screen and on the Server page afterwards.
+- **Backups and restore:** the server backs up daily (configurable), keeps the newest 14, and Dapper lists them, makes
+  one on request, and offers downloads (which need the server settings unlocked). Restore is a documented three-command
+  procedure that saves the current state first. See [docs/dapper-server.md](docs/dapper-server.md).
+- **Trusted certificate** setting: give Dapper the certificate of a server that uses its own (self-signed), tested
+  before it is saved. Works with servers you run yourself too.
+
+### Smaller improvements
+- People with a picture show it (a small thumbnail) beside their name on the People page.
+- If your session ends, Dapper takes you to the sign-in screen and back to the page you were on, instead of showing a
+  "not signed in" error.
+- Fixed: a search term with letters and digits, such as `bk555`, no longer matches every phone number containing
+  those digits.
+- The refint overlay now writes its attribute names one per value, as OpenLDAP 2.6 expects.
+
+### Known limits
+- Migrating an existing directory into a Dapper-run server is not in this release.
+- No replication or high availability for a Dapper-run server; it is one container.
+- Dapper can't stop or start the server container itself (it has no Docker access by design), so restoring and
+  upgrading the server image use a few `docker compose` commands that Dapper shows you.
+- Docker only (no Podman or Kubernetes yet).
+
 ## 1.0.0
 
 The first release of Dapper: a web interface for managing an OpenLDAP directory without knowing LDAP.

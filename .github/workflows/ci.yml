@@ -96,6 +96,56 @@ jobs:
         run: ./scripts/e2e-server.sh
       - name: Paging tests against the live directory
         run: cd backend && DAPPER_TEST_LDAP_URL=ldap://localhost:389 go test -count=1 ./internal/ldapclient/
+      - name: Browser tests (people pictures, ended sessions, accessibility in all three themes)
+        run: |
+          cd scripts/browser
+          npm ci
+          npx playwright install --with-deps chromium
+          BASE=http://localhost:8080 node demo.mjs
+      - name: Logs on failure
+        if: failure()
+        run: $COMPOSE logs
+
+  dapper-run-server:
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    env:
+      DAPPER_SETUP_CODE: ci-setup-code
+      LDAP_HOSTNAME: ldap.test
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.server.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Start Dapper with its own directory server
+        run: $COMPOSE up -d --build
+      - name: Wait for both
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/healthz >/dev/null && [ "$($COMPOSE ps openldap --format '{{.Health}}')" = healthy ] && exit 0
+            sleep 2
+          done
+          $COMPOSE logs
+          exit 1
+      - name: Set up the new server through the API, then check connect info, certificate and backups
+        run: SETUP_CODE=ci-setup-code ./scripts/e2e-bundled.sh
+      - name: Start again from nothing for the browser test
+        run: |
+          $COMPOSE down -v
+          $COMPOSE up -d --build
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/healthz >/dev/null && [ "$($COMPOSE ps openldap --format '{{.Health}}')" = healthy ] && exit 0
+            sleep 2
+          done
+          $COMPOSE logs
+          exit 1
+      - name: Browser test of the new-server setup and the pages after it (accessibility in all three themes)
+        run: |
+          cd scripts/browser
+          npm ci
+          npx playwright install --with-deps chromium
+          SETUP_CODE=ci-setup-code BASE=http://localhost:8080 node bundled.mjs
       - name: Logs on failure
         if: failure()
         run: $COMPOSE logs

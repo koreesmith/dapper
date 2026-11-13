@@ -48,7 +48,7 @@ If you can't set up HTTPS yet, run the wizard through an SSH tunnel instead
 
 ```sh
 git clone https://github.com/koreesmith/dapper && cd dapper
-git checkout v1.0.0
+git checkout v2.0.0
 docker compose up -d --build
 docker compose logs dapper        # note the setup code
 ```

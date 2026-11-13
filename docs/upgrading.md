@@ -21,10 +21,30 @@ docker run --rm -v dapper-data:/data -v "$PWD":/backup alpine tar czf /backup/da
 Release notes are in [CHANGELOG.md](../CHANGELOG.md). Anything that needs your attention when upgrading is called
 out there.
 
+## From 1.0.0 to 2.0.0
+
+Nothing needs to change. A 1.0.0 install keeps working with the same `docker-compose.yml`, the same data volume
+and the same settings.
+
+- **Back up the data volume first**, as above.
+- **Settings file:** two optional keys may appear in `settings.yaml` after you use the new features (`ldap.caFile`,
+  the certificate Dapper trusts, and `ldap.publicHost`, the name of a Dapper-run server). Nothing is added if you
+  don't use them, and 1.0.0 ignores them if you ever go back.
+- **Running your own server?** You can ignore everything about the Dapper-run server. The new **Trusted
+  certificate** section on the Settings page is useful if your server uses its own certificate, because it lets you
+  turn "skip certificate checks" off.
+- **Want Dapper to run a directory server?** That is a separate setup (a new server, not a conversion of yours);
+  see [dapper-server.md](dapper-server.md). Moving an existing directory into it is not part of 2.0.0.
+- **Behaviour changes you may notice:** people with a picture show it on the People page; an ended session sends you
+  to the sign-in screen; searching for text that mixes letters and digits no longer matches phone numbers; the refint
+  overlay writes one attribute name per value (older servers accept both).
+- **The Dapper-run server image** upgrades separately; see "Upgrading the server image" in
+  [dapper-server.md](dapper-server.md).
+
 ### The footer says "Dapper dev"
 
 That is what an image shows when it was built without a version. Building with `docker compose up -d --build`
-doesn't know which release you checked out, so set `DAPPER_VERSION=1.0.0` in `.env` (matching the release) and
+doesn't know which release you checked out, so set `DAPPER_VERSION` in `.env` to the release you checked out (for example `2.0.0`) and
 build again. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
 
 ## Things to know when running it
