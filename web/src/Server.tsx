@@ -13,6 +13,16 @@ olcRootDN: cn=admin,cn=config
 replace: olcRootPW
 olcRootPW: {SSHA}PASTE-A-HASH-FROM-slappasswd-HERE`;
 
+// For a server Dapper runs: its configuration login is cn=config-admin,cn=config, so only the password is replaced.
+const DAPPER_RUN_HELP = `C="docker compose -f docker-compose.yml -f docker-compose.server.yml"
+HASH=$($C exec -T openldap slappasswd -s 'a-new-long-password' | tr -d '\\r\\n')
+$C exec -T openldap ldapmodify -Q -Y EXTERNAL -H "ldapi://%2Frun%2Fslapd%2Fldapi" <<EOF
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+replace: olcRootPW
+olcRootPW: $HASH
+EOF`;
+
 export function Server() {
   const [state, setState] = useState<OverlayState | null>(null);
   const [err, setErr] = useState("");
@@ -71,8 +81,18 @@ export function Server() {
           <details className="advanced">
             <summary>I don't have this login</summary>
             <p className="sub">You have two options.</p>
-            <p><strong>1. Create the login.</strong> On the directory server, run <code>slappasswd</code>, then apply this (replace the hash) with <code>sudo ldapmodify -Y EXTERNAL -H ldapi:///</code>:</p>
-            <pre className="code">{HELP_LDIF}</pre>
+            {connect?.dapperRun ? (
+              <>
+                <p><strong>1. Set a new password.</strong> The login on a server Dapper runs is <code>cn=config-admin,cn=config</code>. Dapper never stores its password, but the server lets you set a new one from inside its container. Run this where Dapper is installed (put your own password in place of <code>a-new-long-password</code>), then unlock with <code>cn=config-admin,cn=config</code> and that password:</p>
+                <pre className="code">{DAPPER_RUN_HELP}</pre>
+              </>
+            ) : (
+              <>
+                <p><strong>1. Create the login.</strong> On the directory server, run <code>slappasswd</code> to make a password hash. Put the hash in the text below (replacing the placeholder), save it as <code>config.ldif</code>, and apply it with the command in the second box. Copy only what is inside the boxes.</p>
+                <pre className="code">{HELP_LDIF}</pre>
+                <pre className="code">sudo ldapmodify -Y EXTERNAL -H ldapi:/// -f config.ldif</pre>
+              </>
+            )}
             <p><strong>2. Don't unlock at all.</strong> Pick a feature below and choose <em>Show me the commands</em>: Dapper will write out exactly what to run on the server, and you run it yourself.</p>
           </details>
         </form>

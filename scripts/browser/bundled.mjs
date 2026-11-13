@@ -72,6 +72,10 @@ for (let i = 0; i < 45 && (await rows()) <= before; i++) await p.waitForTimeout(
 ok("a new backup appears after Back up now", (await rows()) === before + 1);
 await p.getByText("Restore from a backup").click();
 ok("the restore steps show the exact commands", await p.getByText(/run --rm openldap restore dapper-ldap-manual-/).isVisible());
+await p.getByText("I don't have this login").click();
+ok("the unlock help for a Dapper-run server resets only the password, for config-admin",
+  (await p.getByText(/replace: olcRootPW/).isVisible()) && (await p.getByText(/olcRootDN: cn=admin,cn=config/).count()) === 0 &&
+  (await p.getByText(/cn=config-admin,cn=config/).count()) > 0);
 await scanThemes(p, "Server page");
 
 // Settings page: the trusted certificate
