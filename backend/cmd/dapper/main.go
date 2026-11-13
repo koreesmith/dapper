@@ -12,7 +12,7 @@ import (
 	"github.com/koreesmith/dapper/backend/internal/policy"
 )
 
-// version is set at build time: -ldflags "-X main.version=1.0.0". "dev" means a local build.
+// version is set at build time: -ldflags "-X main.version=2.0.0". "dev" means a local build.
 var version = "dev"
 
 func main() {

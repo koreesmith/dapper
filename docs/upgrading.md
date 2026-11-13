@@ -45,11 +45,12 @@ and the same settings.
 - **The Dapper-run server image** upgrades separately; see "Upgrading the server image" in
   [dapper-server.md](dapper-server.md).
 
-### The footer says "Dapper dev"
+### The footer shows the wrong version, or "Dapper dev"
 
-That is what an image shows when it was built without a version. Building with `docker compose up -d --build`
-doesn't know which release you checked out, so set `DAPPER_VERSION` in `.env` to the release you checked out (for example `2.0.0`) and
-build again. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
+Building with `docker compose up -d --build` shows the release you checked out (2.0.0 for this one) by default. If you
+see "dev", the image was built some other way (a plain `docker build` without `--build-arg VERSION=…`), or from an
+older checkout whose compose file didn't set it; build again with `docker compose up -d --build`, or set
+`DAPPER_VERSION` in `.env`. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
 
 ## Things to know when running it
 
