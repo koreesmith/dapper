@@ -56,6 +56,15 @@ curl -s -o "$J/bk.tgz" -w '%{http_code}' -b "$J/b" "$BASE/api/admin/backups/down
 expect "the download is the backup archive" "$(tar -tzf "$J/bk.tgz" 2>/dev/null | grep -c 'config.ldif')" 1
 req b GET "/api/admin/backups/download?name=../../etc/passwd"; expect "odd file names are refused" "$CODE" 400
 req c GET /api/admin/backups; expect "backup list needs a sign-in" "$CODE" 401
+# A server set up by an earlier build has no public name saved: it must still be recognised as Dapper-run.
+if [ -n "${COMPOSE:-}" ]; then
+  $COMPOSE exec -T dapper sed -i '/publicHost/d' /data/settings.yaml
+  $COMPOSE restart dapper >/dev/null 2>&1
+  for _ in $(seq 1 30); do curl -sf "$BASE/healthz" >/dev/null && break; sleep 1; done
+  req d POST /api/login '{"username":"alice","password":"correct horse battery"}'
+  req d GET /api/admin/connect; expect "without a saved name it is still recognised as Dapper-run" "$(jq_ "d['dapperRun'], d['host']")" "(True, 'ldap.test')"
+  req d GET /api/admin/backups; expect "and backups are still offered" "$(jq_ "d['enabled']")" True
+fi
 req c GET /api/admin/connect; expect "connect info needs a sign-in" "$CODE" 401
 
 echo; echo "passed $PASS, failed $FAIL"; [ "$FAIL" = 0 ]

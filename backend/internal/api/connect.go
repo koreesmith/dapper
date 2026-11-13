@@ -93,6 +93,25 @@ func (s *Server) caPut(w http.ResponseWriter, r *http.Request, sess *session.Ses
 	s.caGet(w, r, sess)
 }
 
+// nameFromCertificate picks the name machines use for the server out of its certificate: the first name that
+// isn't one of the stand-ins every Dapper-run certificate carries (localhost, openldap, 127.0.0.1).
+func nameFromCertificate(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "localhost"
+	}
+	c, err := firstCertificate(string(b))
+	if err != nil {
+		return "localhost"
+	}
+	for _, n := range c.DNSNames {
+		if n != "localhost" && n != "openldap" {
+			return n
+		}
+	}
+	return "localhost"
+}
+
 func envOr(name, def string) string {
 	if v := os.Getenv(name); v != "" {
 		return v
@@ -103,12 +122,16 @@ func envOr(name, def string) string {
 // connectGet gives what machines need to use a Dapper-run directory server.
 func (s *Server) connectGet(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
 	cfg := s.c()
-	if cfg.LDAP.PublicHost == "" {
+	if !s.dapperRuns() {
 		writeJSON(w, map[string]any{"dapperRun": false})
 		return
 	}
+	host := cfg.LDAP.PublicHost
+	if host == "" {
+		host = nameFromCertificate(cfg.LDAP.CAFile)
+	}
 	out := map[string]any{
-		"dapperRun": true, "host": cfg.LDAP.PublicHost, "suffix": suffixOf(cfg.Users.BaseDN),
+		"dapperRun": true, "host": host, "suffix": suffixOf(cfg.Users.BaseDN),
 		"ldapPort": envOr("LDAP_PORT", "389"), "ldapsPort": envOr("LDAPS_PORT", "636"),
 	}
 	if b, err := os.ReadFile(cfg.LDAP.CAFile); err == nil {

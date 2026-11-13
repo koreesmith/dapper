@@ -19,6 +19,17 @@ var dirBackupRE = regexp.MustCompile(`^dapper-ldap-(scheduled|manual|pre-restore
 
 func backupDir() string { return envOr("DAPPER_BACKUP_DIR", "/backups") }
 
+// dapperRuns reports whether the directory server is one Dapper set up and runs. Setup records the server's
+// public name, but a server set up by an earlier build has no name saved; the directory server image also leaves
+// a status file in the shared backups folder, which only a Dapper-run server does.
+func (s *Server) dapperRuns() bool {
+	if s.c().LDAP.PublicHost != "" {
+		return true
+	}
+	_, err := os.Stat(filepath.Join(backupDir(), "status.json"))
+	return err == nil
+}
+
 type backupInfo struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
@@ -40,7 +51,7 @@ type backupStatus struct {
 
 func (s *Server) backupsGet(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
 	dir := backupDir()
-	if s.c().LDAP.PublicHost == "" {
+	if !s.dapperRuns() {
 		writeJSON(w, map[string]any{"enabled": false})
 		return
 	}
@@ -96,7 +107,7 @@ func (s *Server) backupsGet(w http.ResponseWriter, _ *http.Request, _ *session.S
 
 // backupsCreate asks the server to make a backup now.
 func (s *Server) backupsCreate(w http.ResponseWriter, _ *http.Request, sess *session.Session) {
-	if s.c().LDAP.PublicHost == "" {
+	if !s.dapperRuns() {
 		fail(w, http.StatusConflict, "This directory server isn't run by Dapper.")
 		return
 	}

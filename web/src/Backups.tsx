@@ -38,7 +38,24 @@ export function Backups({ unlocked }: { unlocked: boolean }) {
   }, [waiting]);
 
   if (!st) return err ? <Notice kind="error">{err}</Notice> : null;
-  if (!st.enabled) return st.message ? <Notice kind="warn">{st.message}</Notice> : null;
+  if (!st.enabled) {
+    return (
+      <details className="panel" id="backups" open>
+        <summary><strong>Backups</strong></summary>
+        {st.message
+          ? <Notice kind="warn">{st.message}</Notice>
+          : (
+            <>
+              <p>Dapper makes, lists and restores backups only for a directory server that <strong>Dapper itself runs</strong>: the one it
+                sets up when you choose “I need a new one” in setup.</p>
+              <p className="sub">Your directory server is one you run yourself, so back it up with your own tools. For OpenLDAP, <code>slapcat</code> on the server
+                writes everything out as LDIF (<code>sudo slapcat -n 0 &gt; config.ldif</code> and <code>sudo slapcat -b &lt;your base DN&gt; &gt; data.ldif</code>),
+                and Dapper's own settings are in its data volume (see “Upgrading and operating Dapper” in the docs).</p>
+            </>
+          )}
+      </details>
+    );
+  }
 
   const list = st.backups ?? [];
   const s = st.status;

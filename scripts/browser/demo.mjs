@@ -48,6 +48,13 @@ try {
 }
 ok("no console errors on the People page", consoleErrors.length === 0, consoleErrors);
 
+// a server Dapper doesn't run: the Server page says where backups come from instead of leaving a gap
+await p.goto(BASE + "/#/server");
+await p.getByText("Backups", { exact: true }).waitFor();
+ok("the Server page explains that backups are for a Dapper-run server", await p.getByText(/only for a directory server that/).isVisible());
+ok("and offers no Back up now button", (await p.getByRole("button", { name: "Back up now" }).count()) === 0);
+await scanThemes(p, "Server page (server not run by Dapper)");
+
 // a session that ends behind the page's back
 await p.goto(BASE + "/#/groups");
 await p.getByRole("heading", { name: "Groups" }).first().waitFor();
