@@ -112,6 +112,13 @@ ok "Dapper's group can read the backup" "$(bk "head -c 2 /b/$F | wc -c" 10001:10
 cl 'ldapdelete -x -ZZ -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw cn=new,dc=test,dc=lan' >/dev/null
 has "(damage done: the entry is gone)" "$(cl 'ldapsearch -x -ZZ -LLL -H ldap://ldap.test -D cn=admin,dc=test,dc=lan -w adminpw -b dc=test,dc=lan -s sub "(cn=new)" dn; echo')" "^$"
 docker stop "$SRV" >/dev/null
+bk 'echo hello > /b/dapper-ldap-manual-20300101-000000.tar.gz' 0 >/dev/null
+BAD=$(docker run --rm -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-b":/backups "$IMG" restore dapper-ldap-manual-20300101-000000.tar.gz 2>&1)
+has "restoring something that isn't a backup says so plainly" "$BAD" "isn't a Dapper directory backup"
+has "and changes nothing" "$BAD" "Nothing was changed"
+NOF=$(docker run --rm -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-b":/backups "$IMG" restore nothing.tar.gz 2>&1)
+has "a missing backup is named, with the ones that exist" "$NOF" "No such backup"
+bk 'rm -f /b/dapper-ldap-manual-20300101-000000.tar.gz' 0 >/dev/null
 RES=$(docker run --rm -v "$P-c":/etc/ldap/slapd.d -v "$P-d":/var/lib/ldap -v "$P-t":/etc/ldap/tls -v "$P-h":/handoff -v "$P-b":/backups "$IMG" restore "$F" 2>&1)
 has "restore reports the directory restored" "$RES" "restored dc=test,dc=lan"
 has "restore saved the current state first" "$(bk 'ls /b')" "dapper-ldap-pre-restore-"

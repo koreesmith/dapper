@@ -13,8 +13,8 @@ case "$FILE" in */*|*..*) echo "Give the backup's file name only, without a path
 [ -f "$OUT/$FILE" ] || { echo "No such backup: $OUT/$FILE" >&2; ls -1 "$OUT" | grep '^dapper-ldap-' >&2 || true; exit 1; }
 
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
-tar -xzf "$OUT/$FILE" -C "$WORK"
-[ -f "$WORK/config.ldif" ] && [ -f "$WORK/manifest" ] || { echo "$FILE isn't a Dapper directory backup." >&2; exit 1; }
+tar -xzf "$OUT/$FILE" -C "$WORK" 2>/dev/null || { echo "$FILE isn't a Dapper directory backup (it can't be opened as one). Nothing was changed." >&2; exit 1; }
+[ -f "$WORK/config.ldif" ] && [ -f "$WORK/manifest" ] || { echo "$FILE isn't a Dapper directory backup. Nothing was changed." >&2; exit 1; }
 
 if [ -f "$CONF/cn=config.ldif" ]; then
   echo "Saving the current state first..."
