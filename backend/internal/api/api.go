@@ -28,6 +28,7 @@ type Server struct {
 	sessions *session.Store
 	limit    *limiter
 
+	mig        migState // a migration into a Dapper-run server, if one is under way
 	setupMu    sync.Mutex
 	setupToken string // required for the setup wizard while Dapper is unconfigured
 }
@@ -130,6 +131,12 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/admin/ca", s.admin(s.caGet))
 	mux.HandleFunc("PUT /api/admin/ca", s.admin(s.caPut))
 	mux.HandleFunc("GET /api/admin/connect", s.admin(s.connectGet))
+	mux.HandleFunc("GET /api/admin/migration", s.admin(s.migrationStatus))
+	mux.HandleFunc("POST /api/admin/migration/check", s.admin(s.migrationCheckHandler))
+	mux.HandleFunc("POST /api/admin/migration/copy", s.admin(s.migrationCopy))
+	mux.HandleFunc("POST /api/admin/migration/switch", s.admin(s.migrationSwitch))
+	mux.HandleFunc("POST /api/admin/migration/rollback", s.admin(s.migrationRollback))
+	mux.HandleFunc("POST /api/admin/migration/finish", s.admin(s.migrationFinish))
 	mux.HandleFunc("GET /api/admin/backups", s.admin(s.backupsGet))
 	mux.HandleFunc("POST /api/admin/backups", s.admin(s.backupsCreate))
 	mux.HandleFunc("GET /api/admin/backups/download", s.admin(s.backupsDownload))

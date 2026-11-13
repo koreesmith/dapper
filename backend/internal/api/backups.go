@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/koreesmith/dapper/backend/internal/session"
@@ -23,8 +24,14 @@ func backupDir() string { return envOr("DAPPER_BACKUP_DIR", "/backups") }
 // public name, but a server set up by an earlier build has no name saved; the directory server image also leaves
 // a status file in the shared backups folder, which only a Dapper-run server does.
 func (s *Server) dapperRuns() bool {
-	if s.c().LDAP.PublicHost != "" {
+	cfg := s.c()
+	if cfg.LDAP.PublicHost != "" {
 		return true
+	}
+	// A Dapper-run server may be attached beside the one Dapper manages (while migrating), so the status file
+	// only counts when Dapper's own connection is to that server.
+	if !strings.EqualFold(strings.TrimRight(cfg.LDAP.URL, "/"), strings.TrimRight(bundledURL(), "/")) {
+		return false
 	}
 	_, err := os.Stat(filepath.Join(backupDir(), "status.json"))
 	return err == nil

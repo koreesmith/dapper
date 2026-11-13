@@ -39,7 +39,14 @@ type Change struct {
 type Client struct {
 	mu   sync.Mutex
 	conn *ldap.Conn
+	// keepSecrets lets reads return password and key attributes. It is off for every connection except the
+	// two a migration opens, which copy them between servers and never show them to anyone.
+	keepSecrets bool
 }
+
+// KeepSecrets makes this connection's reads include password hashes and other secret attributes. Only a
+// migration, which copies them straight to another server, uses it.
+func (c *Client) KeepSecrets() { c.keepSecrets = true }
 
 // Dial connects (with optional StartTLS) but does not bind.
 func Dial(srv Server) (*Client, error) {
@@ -128,7 +135,7 @@ func (c *Client) Close() {
 
 var syncreplSecret = regexp.MustCompile(`(?i)\b(credentials|bindpw)=("[^"]*"|\S+)`)
 
-func toEntries(res *ldap.SearchResult) []Entry {
+func toEntries(res *ldap.SearchResult, keepSecrets bool) []Entry {
 	out := make([]Entry, 0, len(res.Entries))
 	for _, e := range res.Entries {
 		a := map[string][]string{}
@@ -142,7 +149,7 @@ func toEntries(res *ldap.SearchResult) []Entry {
 				a[at.Name] = vals
 				continue
 			}
-			if IsSecretAttr(at.Name) {
+			if !keepSecrets && IsSecretAttr(at.Name) {
 				continue // never send password data to the browser or write it to a backup
 			}
 			a[at.Name] = at.Values
@@ -170,7 +177,7 @@ func (c *Client) searchRaw(base string, scope int, filter string, attrs []string
 			}
 			sizeLimited = true
 		}
-		return toEntries(res), sizeLimited, nil
+		return toEntries(res, c.keepSecrets), sizeLimited, nil
 	}
 	paging := ldap.NewControlPaging(pageSize)
 	for {
@@ -182,7 +189,7 @@ func (c *Client) searchRaw(base string, scope int, filter string, attrs []string
 			}
 			sizeLimited = true // the server doesn't page and cut us off
 		}
-		out = append(out, toEntries(res)...)
+		out = append(out, toEntries(res, c.keepSecrets)...)
 		if limit > 0 && len(out) >= limit {
 			return out[:limit], sizeLimited, nil
 		}
@@ -230,6 +237,20 @@ func (c *Client) ObjectClassNames() (map[string]bool, error) {
 		return nil, err
 	}
 	return ParseObjectClassNames(se.Values("objectClasses")), nil
+}
+
+// AttributeNames returns the (lower-cased) attribute type names the server's schema defines.
+func (c *Client) AttributeNames() (map[string]bool, error) {
+	es, err := c.search("", ldap.ScopeBaseObject, "(objectClass=*)", []string{"subschemaSubentry"}, 1)
+	if err != nil || len(es) == 0 {
+		return nil, err
+	}
+	sub := first(es[0].Values("subschemaSubentry"), "cn=Subschema")
+	se, err := c.GetAttrs(sub, []string{"attributeTypes"})
+	if err != nil {
+		return nil, err
+	}
+	return ParseObjectClassNames(se.Values("attributeTypes")), nil // the same "NAME 'x'" shape
 }
 
 // ParseObjectClassNames extracts the (lower-cased) names from schema definitions

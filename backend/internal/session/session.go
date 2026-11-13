@@ -145,6 +145,20 @@ func (s *Store) SetTimeouts(idle, maxAge time.Duration) {
 	s.mu.Unlock()
 }
 
+// RevokeAll ends every session except the one with id keep (use "" to end them all).
+func (s *Store) RevokeAll(keep string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, sess := range s.sessions {
+		if sess.ID != keep {
+			s.drop(sess)
+			n++
+		}
+	}
+	return n
+}
+
 // RevokeFor ends every session belonging to the account dn (compared case-insensitively),
 // except the one with id keep (use "" to end them all). Returns how many were ended.
 func (s *Store) RevokeFor(dn, keep string) int {

@@ -1,0 +1,16 @@
+# TEST ONLY: an "old" directory server (the demo OpenLDAP with sample people) next to Dapper and a Dapper-run
+# server, for trying a migration:
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.migrate-test.yml up -d --build
+# Dapper is set up against `source-ldap` (ldap://source-ldap:389, cn=admin,dc=example,dc=org / admin), then
+# Migrate moves it to the Dapper-run server. See scripts/e2e-migrate.sh and docs/testing-migration.md.
+services:
+  source-ldap:
+    image: osixia/openldap:1.5.0
+    environment:
+      LDAP_ORGANISATION: Example
+      LDAP_DOMAIN: example.org
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_CONFIG_PASSWORD: config
+    command: --copy-service
+    volumes:
+      - ./deploy/dev-seed.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/50-seed.ldif:ro

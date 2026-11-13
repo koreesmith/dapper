@@ -25,6 +25,16 @@ yourself.
 - **Trusted certificate** setting: give Dapper the certificate of a server that uses its own (self-signed), tested
   before it is saved. Works with servers you run yourself too.
 
+### Migrate an existing directory to a server Dapper runs
+- A **Migrate** tab (when Dapper manages a server it doesn't run). **Check** reads the old directory and reports what
+  will fit: counts, schema the new server doesn't know, how passwords are stored, and what isn't carried over.
+  **Copy** creates a directory with the same name on the new server and copies every entry with password hashes exactly as
+  they are, then checks that the copy is identical. It can be repeated to pick up changes. **Switch** repoints Dapper and
+  shows the new passwords once with a cutover checklist; **Roll back** returns to the old server; **Finish** forgets it.
+  See [docs/migrating.md](docs/migrating.md).
+- The Dapper-run server also checks more password schemes (SSHA256/384/512, PBKDF2, APR1) so people carried over from
+  other servers can keep signing in.
+
 ### Smaller improvements
 - People with a picture show it (a small thumbnail) beside their name on the People page.
 - If your session ends, Dapper takes you to the sign-in screen and back to the page you were on, instead of showing a
@@ -34,7 +44,7 @@ yourself.
 - The refint overlay now writes its attribute names one per value, as OpenLDAP 2.6 expects.
 
 ### Known limits
-- Migrating an existing directory into a Dapper-run server is not in this release.
+- Migration doesn't copy access rules, indexes or other server configuration, and password expiry clocks restart.
 - No replication or high availability for a Dapper-run server; it is one container.
 - Dapper can't stop or start the server container itself (it has no Docker access by design), so restoring and
   upgrading the server image use a few `docker compose` commands that Dapper shows you.

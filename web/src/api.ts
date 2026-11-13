@@ -108,12 +108,34 @@ export interface BundledResult {
 
 export interface CertView { subject: string; issuer: string; notBefore: string; notAfter: string; daysLeft: number; expired: boolean; names: string[]; selfSigned: boolean }
 export interface CAState { set: boolean; error?: string; cert?: CertView; pem?: string }
-export interface ConnectInfo { dapperRun: boolean; host?: string; suffix?: string; ldapPort?: string; ldapsPort?: string; certificate?: string; cert?: CertView }
+export interface ConnectInfo { dapperRun: boolean; migrating?: boolean; host?: string; suffix?: string; ldapPort?: string; ldapsPort?: string; certificate?: string; cert?: CertView }
 
 export interface BackupItem { name: string; kind: "scheduled" | "manual" | "pre-restore"; time: string; size: number }
 export interface BackupsState {
   enabled: boolean; message?: string; backups?: BackupItem[]; problem?: string; requested?: boolean;
   status?: { lastAttempt: number; lastSuccess: string; lastError: string; intervalHours: number; keep: number; dataBytes: number; diskFreeBytes: number; image: string };
+}
+
+export interface MigCreds { sourceDN: string; sourcePassword: string; skipUnsupported?: boolean; confirmed?: boolean }
+export interface MigCheck {
+  suffix: string; entries: number; kinds: Record<string, number>;
+  unsupported: { kind: string; name: string; count: number; sample: string[] }[]; affectedEntries: number;
+  hashes: { scheme: string; count: number; supported: boolean }[]; plainText: number;
+  carryOverlays: string[]; notCarried: string[]; overlaysKnown: boolean; blockers: string[]; warnings: string[];
+  targetFound: boolean; host?: string;
+}
+export interface MigResult {
+  sourceEntries: number; added: number; updated: number; unchanged: number; skipped: number; failed: number; failures?: string[];
+  identical: number; mismatched: number; mismatchSample?: string[]; extras: number; extrasSample?: string[]; verified: boolean; carriedOverlays?: string[];
+}
+export interface MigJob { running: boolean; phase: string; done: number; total: number; error?: string; result?: MigResult }
+export interface MigStatus {
+  dapperRun: boolean; canRollback?: boolean; previousURL?: string; sourceURL?: string; job: MigJob; readyToSwitch: boolean; suffix: string;
+  newServer?: { found: boolean; host?: string; reachable?: boolean; message?: string };
+}
+export interface MigSwitched {
+  ok: boolean; suffix: string; host: string; managerDN: string; managerPassword: string; configDN: string; configPassword: string;
+  certificate: string; checklist: string[];
 }
 
 let setupCode = "";
@@ -246,6 +268,12 @@ export const api = {
 
   ca: () => req<CAState>("/api/admin/ca"),
   setCA: (pem: string) => req<CAState>("/api/admin/ca", json("PUT", { pem })),
+  migration: () => req<MigStatus>("/api/admin/migration"),
+  migCheck: (c: MigCreds) => req<MigCheck>("/api/admin/migration/check", json("POST", c)),
+  migCopy: (c: MigCreds) => req<{ started: boolean }>("/api/admin/migration/copy", json("POST", { ...c, confirmed: true })),
+  migSwitch: () => req<MigSwitched>("/api/admin/migration/switch", json("POST", { confirmed: true })),
+  migRollback: () => req<{ ok: boolean; url: string }>("/api/admin/migration/rollback", json("POST", { confirmed: true })),
+  migFinish: () => req<{ ok: boolean }>("/api/admin/migration/finish", json("POST", { confirmed: true })),
   backups: () => req<BackupsState>("/api/admin/backups"),
   backupNow: () => req<{ requested: boolean }>("/api/admin/backups", { method: "POST" }),
   backupUrl: (name: string) => `/api/admin/backups/download?name=${encodeURIComponent(name)}`,

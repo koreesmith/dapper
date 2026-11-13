@@ -122,8 +122,9 @@ func envOr(name, def string) string {
 // connectGet gives what machines need to use a Dapper-run directory server.
 func (s *Server) connectGet(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
 	cfg := s.c()
+	migrating := cfg.PreviousLDAP != nil // a migration was switched and not yet finished or rolled back
 	if !s.dapperRuns() {
-		writeJSON(w, map[string]any{"dapperRun": false})
+		writeJSON(w, map[string]any{"dapperRun": false, "migrating": migrating})
 		return
 	}
 	host := cfg.LDAP.PublicHost
@@ -131,7 +132,7 @@ func (s *Server) connectGet(w http.ResponseWriter, _ *http.Request, _ *session.S
 		host = nameFromCertificate(cfg.LDAP.CAFile)
 	}
 	out := map[string]any{
-		"dapperRun": true, "host": host, "suffix": suffixOf(cfg.Users.BaseDN),
+		"dapperRun": true, "migrating": migrating, "host": host, "suffix": suffixOf(cfg.Users.BaseDN),
 		"ldapPort": envOr("LDAP_PORT", "389"), "ldapsPort": envOr("LDAPS_PORT", "636"),
 	}
 	if b, err := os.ReadFile(cfg.LDAP.CAFile); err == nil {

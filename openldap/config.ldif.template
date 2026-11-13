@@ -28,6 +28,10 @@ olcModuleLoad: lastbind
 olcModuleLoad: syncprov
 # Password schemes: Argon2 for new passwords; older hashes such as {SSHA} still verify.
 olcModuleLoad: argon2
+# More password schemes, so people carried over from other servers can keep signing in.
+olcModuleLoad: pw-sha2
+olcModuleLoad: pw-pbkdf2
+olcModuleLoad: pw-apr1
 
 dn: cn=schema,cn=config
 objectClass: olcSchemaConfig

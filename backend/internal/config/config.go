@@ -21,6 +21,10 @@ import (
 
 // Settings are the values administrators manage in the UI.
 type Settings struct {
+	// PreviousLDAP is the connection Dapper used before it was switched to a Dapper-run server by a migration.
+	// It is kept so the switch can be undone, until the migration is finished.
+	PreviousLDAP *LDAP `yaml:"previousLDAP,omitempty"`
+
 	LDAP     LDAP     `yaml:"ldap"`
 	Users    Users    `yaml:"users"`
 	Groups   Groups   `yaml:"groups"`
