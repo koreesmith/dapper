@@ -7,8 +7,9 @@ yourself.
 
 ### A directory server run by Dapper
 - **Choose at setup:** "I already have an LDAP server" (the 1.0.0 steps, unchanged) or "I need a new one".
-- **New image:** `ghcr.io/koreesmith/dapper-ldap`, OpenLDAP 2.6 on Debian, built by us and scanned for known
-  vulnerabilities in CI. It includes the memberOf, refint, ppolicy, unique, auditlog, lastbind and syncprov overlays
+- **New image:** `ghcr.io/koreesmith/dapper-ldap` (amd64 and arm64), OpenLDAP 2.6 on Debian, built by us and scanned for
+  known vulnerabilities in CI. `docker-compose.server.yml` builds it from `openldap/`; the published image is there if
+  you would rather pull it. It includes the memberOf, refint, ppolicy, unique, auditlog, lastbind and syncprov overlays
   and the core, cosine, inetorgperson, nis and openssh-lpk schemas. New passwords are stored as Argon2; hashes from
   elsewhere (for example `{SSHA}`) keep working.
 - **`docker-compose.server.yml`** runs Dapper and the server together (the 1.0.0 `docker-compose.yml` is unchanged).
@@ -53,7 +54,11 @@ yourself.
 - The refint overlay now writes its attribute names one per value, as OpenLDAP 2.6 expects.
 
 ### Known limits
-- Migration doesn't copy access rules, indexes or other server configuration, and password expiry clocks restart.
+- Migration doesn't copy access rules, indexes or other server configuration, and password expiry clocks restart. A new
+  server can be migrated into once (its one-time first-start file is used up); to try again, start a fresh server. The
+  old server is only ever read.
+- A service account can read as much as other signed-in accounts can on your server: "read-only" means Dapper gives it no
+  write rights, and the rest follows the server's access rules (the page tells you when they are too open).
 - No replication or high availability for a Dapper-run server; it is one container.
 - Dapper can't stop or start the server container itself (it has no Docker access by design), so restoring and
   upgrading the server image use a few `docker compose` commands that Dapper shows you.

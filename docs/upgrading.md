@@ -27,9 +27,13 @@ Nothing needs to change. A 1.0.0 install keeps working with the same `docker-com
 and the same settings.
 
 - **Back up the data volume first**, as above.
-- **Settings file:** two optional keys may appear in `settings.yaml` after you use the new features (`ldap.caFile`,
-  the certificate Dapper trusts, and `ldap.publicHost`, the name of a Dapper-run server). Nothing is added if you
-  don't use them, and 1.0.0 ignores them if you ever go back.
+- **Settings file:** optional keys may appear in `settings.yaml` after you use the new features: `ldap.caFile` (the
+  certificate Dapper trusts), `ldap.publicHost` (the name of a Dapper-run server) and, during a migration,
+  `previousLDAP` (the old server's connection, **including its saved password**, kept so the switch can be rolled
+  back; **Finish the migration** removes it). Nothing is added if you don't use them, and 1.0.0 ignores them if you
+  ever go back.
+- **New pages:** Service accounts (always shown), and Migrate (shown while Dapper manages a server it doesn't run, or
+  while a migration is unfinished).
 - **Running your own server?** You can ignore everything about the Dapper-run server. The new **Trusted
   certificate** section on the Settings page is useful if your server uses its own certificate, because it lets you
   turn "skip certificate checks" off.
