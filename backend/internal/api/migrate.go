@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -385,7 +388,8 @@ func (s *Server) analyse(sess *session.Session, creds migCreds) (*migCheck, []ld
 	// the new server
 	h, herr := readHandoff()
 	if herr != nil {
-		rep.Blockers = append(rep.Blockers, "Dapper can't find the new directory server. Start it first (see the steps above), then check again.")
+		_, why := diagnoseNoHandoff(herr)
+		rep.Blockers = append(rep.Blockers, why)
 	} else {
 		rep.Host = h.Host
 		cc, err := s.configConn(h)
@@ -496,6 +500,31 @@ func (s *Server) migrationCheckHandler(w http.ResponseWriter, r *http.Request, s
 	writeJSON(w, rep)
 }
 
+// diagnoseNoHandoff says, in plain words, why Dapper has no first-start file from a new server to work with.
+func diagnoseNoHandoff(readErr error) (reason, message string) {
+	if !os.IsNotExist(readErr) {
+		return "unusable", "Dapper found the new server's first-start file but couldn't use it: " + readErr.Error() + "."
+	}
+	dir := filepath.Dir(handoffPath())
+	if _, err := os.Stat(dir); err != nil {
+		return "no-volume", "Dapper wasn't started together with its directory server: the folder they share (" + dir + ") isn't there. Start both with the command below."
+	}
+	u, err := url.Parse(bundledURL())
+	if err != nil || u.Host == "" {
+		return "server-down", "Dapper can't tell where the new server is. Check DAPPER_BUNDLED_URL."
+	}
+	host := u.Host
+	if u.Port() == "" {
+		host = net.JoinHostPort(u.Hostname(), "636")
+	}
+	c, err := net.DialTimeout("tcp", host, 3*time.Second)
+	if err != nil {
+		return "server-down", "Dapper can't reach the new server at " + host + ". It isn't running, or it isn't on the same Docker network as Dapper. Start it with the command below."
+	}
+	c.Close()
+	return "already-used", "The new server is running, but its one-time first-start file is gone, which means it was already set up (or a migration already used it). A new server can be migrated into only once, while it is still empty. To start over with a fresh one, see “If something goes wrong” in docs/migrating.md."
+}
+
 // ---- status ----
 
 func (s *Server) migrationStatus(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
@@ -508,14 +537,17 @@ func (s *Server) migrationStatus(w http.ResponseWriter, _ *http.Request, _ *sess
 	if !s.dapperRuns() {
 		out["sourceURL"] = cfg.LDAP.URL
 		nf := map[string]any{"found": false}
-		if h, err := readHandoff(); err == nil {
+		h, err := readHandoff()
+		if err == nil {
 			nf["found"], nf["host"] = true, h.Host
 			if cc, err := s.configConn(h); err == nil {
 				cc.Close()
 				nf["reachable"] = true
 			} else {
-				nf["reachable"], nf["message"] = false, err.Error()
+				nf["reachable"], nf["message"] = false, "Dapper found the new server's first-start file but couldn't connect to it: "+err.Error()+"."
 			}
+		} else {
+			nf["reason"], nf["message"] = diagnoseNoHandoff(err)
 		}
 		out["newServer"] = nf
 	}

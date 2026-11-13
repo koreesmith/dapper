@@ -131,7 +131,7 @@ export interface MigResult {
 export interface MigJob { running: boolean; phase: string; done: number; total: number; error?: string; result?: MigResult }
 export interface MigStatus {
   dapperRun: boolean; canRollback?: boolean; previousURL?: string; sourceURL?: string; job: MigJob; readyToSwitch: boolean; suffix: string;
-  newServer?: { found: boolean; host?: string; reachable?: boolean; message?: string };
+  newServer?: { found: boolean; host?: string; reachable?: boolean; message?: string; reason?: "no-volume" | "server-down" | "already-used" | "unusable" };
 }
 export interface MigSwitched {
   ok: boolean; suffix: string; host: string; managerDN: string; managerPassword: string; configDN: string; configPassword: string;

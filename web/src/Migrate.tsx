@@ -83,9 +83,15 @@ export function Migrate() {
           ? <Notice kind="ok">Found Dapper's new server and connected to it{ns?.host ? <> (it will be known to your machines as <strong>{ns.host}</strong>)</> : ""}.</Notice>
           : (
             <>
-              <Notice kind="warn">{ns?.found ? (ns.message ?? "Dapper found the new server but couldn't connect to it.") : "Dapper can't find a new directory server. It isn't running yet."}</Notice>
-              <p>Start it next to Dapper (your Dapper settings and data are kept). Set <code>LDAP_HOSTNAME</code> in your <code>.env</code> first to the name your machines will use for it (see <code>.env.example</code>), then run this where Dapper is installed:</p>
-              <pre className="code">{COMPOSE}</pre>
+              <Notice kind="warn">{ns?.message ?? "Dapper can't find a new directory server."}</Notice>
+              {ns?.reason === "already-used" || ns?.reason === "unusable"
+                ? <p className="sub">Details are in <code>docs/migrating.md</code> (in your Dapper folder) under “If something goes wrong”.</p>
+                : (
+                  <>
+                    <p>Start it next to Dapper (your Dapper settings and data are kept). Set <code>LDAP_HOSTNAME</code> in your <code>.env</code> first to the name your machines will use for it (see <code>.env.example</code>). If your old server runs on this same machine, also set <code>LDAP_PORT=3389</code> and <code>LDAPS_PORT=3636</code> so they don't clash. Then run this where Dapper is installed:</p>
+                    <pre className="code">{COMPOSE}</pre>
+                  </>
+                )}
               <div className="formactions"><button onClick={load}>Check again</button></div>
             </>
           )}

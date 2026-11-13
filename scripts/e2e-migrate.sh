@@ -85,6 +85,7 @@ req n POST /api/admin/migration/rollback '{"confirmed":true}'; expect "rollback 
 req o POST /api/login '{"username":"alice","password":"alicepass"}'; expect "signing in works against the old server again" "$CODE" 200
 req o GET /api/admin/settings; expect "Dapper is back on the old server" "$(jq_ "d['settings']['ldap']['url']")" "ldap://source-ldap:389"
 req o GET /api/admin/migration; expect "nothing left to roll back" "$(jq_ "d.get('canRollback', False)")" False
+req o GET /api/admin/migration; expect "after a rollback the used-up server is explained, not called 'not running'" "$(jq_ "d['newServer']['reason']")" already-used
 req o POST /api/admin/migration/finish '{"confirmed":true}'; expect "finishing when there is nothing to finish is refused" "$CODE" 409
 
 echo; echo "passed $PASS, failed $FAIL"; [ "$FAIL" = 0 ]
