@@ -105,6 +105,9 @@ Each line is a count, the client's address, the login it tried and the result.
 | `err=13` | The client connects **without encryption**, which the new server refuses. | Switch it to StartTLS on port 389 or LDAPS on port 636. |
 | `TLS negotiation failure` | The client **doesn't trust the new certificate** (it is self-signed). | Install the certificate where the client looks for it. For `sssd`, `ldap_tls_cacert` (a bundle with the old and new certificates lets it trust either server while you can still roll back). For a container, mount the file in and point `TLS_CACERT` at it. For PHP on SELinux (Nextcloud), put the certificate in the system trust store with `update-ca-trust`, since a confined web process can't read files under `/etc/openldap`. |
 
+Better than handing each application the directory manager: give each its own read-only account under **Service accounts**
+([application-accounts.md](application-accounts.md)), and the directory manager's password stays out of every application.
+
 Passwords of people (not the directory manager) were copied as they are, so they keep working once the client can
 connect.
 

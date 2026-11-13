@@ -21,6 +21,9 @@ manage users **without knowing LDAP**. The first release targets **OpenLDAP**.
 - **No LDAP server yet? Dapper can run one for you:** an OpenLDAP server in its own container, set up through the
   same wizard, encrypted connections only, with scheduled backups, one-click restore steps and ready-made
   settings for your Linux machines ([docs/dapper-server.md](docs/dapper-server.md))
+- **Service accounts:** read-only accounts for applications and machines that look people up, so they don't use the
+  directory manager; checked when created, with the one access rule that lets them read added for you if needed
+  ([docs/application-accounts.md](docs/application-accounts.md))
 - **Move an existing directory into that server** with a check, a repeatable copy, a switch and a rollback, keeping
   every name and password ([docs/migrating.md](docs/migrating.md))
 - An **Advanced** view for working with raw LDAP entries when you need to

@@ -94,6 +94,8 @@ jobs:
         run: ./scripts/e2e-overlays.sh
       - name: Server settings (schemas, indexes, access rules, TLS) tests
         run: ./scripts/e2e-server.sh
+      - name: Service account (read-only account for applications) tests
+        run: ./scripts/e2e-service.sh
       - name: Paging tests against the live directory
         run: cd backend && DAPPER_TEST_LDAP_URL=ldap://localhost:389 go test -count=1 ./internal/ldapclient/
       - name: Browser tests (people pictures, ended sessions, accessibility in all three themes)

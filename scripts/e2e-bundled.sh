@@ -56,6 +56,14 @@ curl -s -o "$J/bk.tgz" -w '%{http_code}' -b "$J/b" "$BASE/api/admin/backups/down
 expect "the download is the backup archive" "$(tar -tzf "$J/bk.tgz" 2>/dev/null | grep -c 'config.ldif')" 1
 req b GET "/api/admin/backups/download?name=../../etc/passwd"; expect "odd file names are refused" "$CODE" 400
 req c GET /api/admin/backups; expect "backup list needs a sign-in" "$CODE" 401
+# Service accounts on a Dapper-run server: the default rules already let a signed-in account read people (and never hashes)
+req b POST /api/admin/service-accounts '{"name":"e2esvc","description":"e2e","confirmed":true}'; expect "a service account is created" "$CODE" 200
+expect "it signs in and reads people straight away, without seeing password hashes" "$(jq_ "d['test']['signedIn'], d['test']['canRead']>0, d['test']['seesHashes']")" "(True, True, False)"
+SVCDN=$(jq_ "d['dn']")
+expect "its name is inside the services container" "$(jq_ "d['dn']")" "cn=e2esvc,ou=services,dc=test,dc=lan"
+req b GET /api/admin/service-accounts; expect "the connection hints name the Dapper-run server" "$(jq_ "d['dapperRun'], d['host']")" "(True, 'ldap.test')"
+req b DELETE "/api/admin/service-account?dn=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$SVCDN")"; expect "and deleted" "$CODE" 200
+
 # A server set up by an earlier build has no public name saved: it must still be recognised as Dapper-run.
 if [ -n "${COMPOSE:-}" ]; then
   $COMPOSE exec -T dapper sed -i '/publicHost/d' /data/settings.yaml

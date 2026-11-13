@@ -289,6 +289,16 @@ func (s *Server) buildServerPlan(cc *ldapclient.Client, st *overlays.State, req 
 		p.Warnings = append(p.Warnings, "Searches that use this attribute may become slow on a large directory. They keep working.")
 		return p, "", nil
 
+	case "acl.service-read":
+		rules, changed, err := insertServiceRead(db.Values("olcAccess"), "ou=services,"+st.Suffix)
+		if err != nil {
+			return nil, "", err
+		}
+		if !changed {
+			return nil, "", validationError("The access rules already let service accounts read the directory.")
+		}
+		req.Rules = rules
+		fallthrough
 	case "acl.set":
 		rules, warn, err := s.checkACL(req.Rules, db.Values("olcRootDN"))
 		if err != nil {
@@ -300,6 +310,9 @@ func (s *Server) buildServerPlan(cc *ldapclient.Client, st *overlays.State, req 
 		}
 		mod(st.DBDN, overlays.Mod{Op: "replace", Attr: "olcAccess", Values: numbered})
 		p.Summary = append(p.Summary, fmt.Sprintf("Replace the directory's access rules with these %d rules.", len(rules)))
+		if req.Kind == "acl.service-read" {
+			p.Summary = []string{"Let service accounts (every account under ou=services," + st.Suffix + ") read the directory, by adding one clause to the catch-all access rule. Password hashes stay hidden: an earlier rule already protects them. Nothing else about the rules changes."}
+		}
 		p.Warnings = append(p.Warnings, "A mistake here can stop people, applications or Dapper itself from reading or changing the directory, and fixing it may require editing the server's configuration on the server directly. A copy of the current rules is saved first and shown in the backup.")
 		p.Warnings = append(p.Warnings, warn...)
 		return p, "", nil

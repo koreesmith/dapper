@@ -139,6 +139,14 @@ export interface MigSwitched {
   certificate: string; checklist: string[];
 }
 
+export interface ServiceTest { signedIn: boolean; canRead: number; seesHashes: boolean; error?: string }
+export interface ServiceAccount { dn: string; name: string; description: string }
+export interface ServiceAccountsState {
+  container: string; containerExists: boolean; accounts: ServiceAccount[]; searchBase: string; usersBase: string;
+  serverURL: string; dapperRun: boolean; host?: string;
+}
+export interface ServiceResult { dn: string; name?: string; container?: string; password?: string; test: ServiceTest }
+
 let setupCode = "";
 export const setSetupCode = (c: string) => { setupCode = c; };
 
@@ -269,6 +277,14 @@ export const api = {
 
   ca: () => req<CAState>("/api/admin/ca"),
   setCA: (pem: string) => req<CAState>("/api/admin/ca", json("PUT", { pem })),
+  serviceAccounts: () => req<ServiceAccountsState>("/api/admin/service-accounts"),
+  createServiceAccount: (b: { name: string; description: string; password?: string }) =>
+    req<ServiceResult>("/api/admin/service-accounts", json("POST", { ...b, confirmed: true })),
+  resetServicePassword: (dn: string, password?: string) =>
+    req<ServiceResult>("/api/admin/service-accounts/password", json("POST", { dn, password: password ?? "", confirmed: true })),
+  testServiceAccount: (dn: string, password: string) =>
+    req<{ dn: string; test: ServiceTest }>("/api/admin/service-accounts/test", json("POST", { dn, password })),
+  deleteServiceAccount: (dn: string) => req(`/api/admin/service-account?${q(dn)}`, { method: "DELETE" }),
   migration: () => req<MigStatus>("/api/admin/migration"),
   migCheck: (c: MigCreds) => req<MigCheck>("/api/admin/migration/check", json("POST", c)),
   migCopy: (c: MigCreds) => req<{ started: boolean }>("/api/admin/migration/copy", json("POST", { ...c, confirmed: true })),

@@ -73,7 +73,7 @@ td input:not([type="checkbox"]):not([type="radio"]) { display: block; width: 420
 
 .list-tools { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .search { flex: 1; max-width: 520px; padding: 8px 10px; }
-table.users { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+table.users { position: relative; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
 table.users th, table.users td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 table.users th { color: var(--muted); }
 table.users tbody tr:hover { background: var(--selected); }

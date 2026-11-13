@@ -25,6 +25,13 @@ yourself.
 - **Trusted certificate** setting: give Dapper the certificate of a server that uses its own (self-signed), tested
   before it is saved. Works with servers you run yourself too.
 
+### Service accounts
+- A **Service accounts** page for read-only accounts that applications and machines use to look people up (sssd,
+  Nextcloud, Zabbix, Semaphore…), instead of the directory manager. Create, reset the password of, and delete them; the
+  password is shown once. Each is checked when created (it signs in, reads people, and can't see password hashes), and if
+  the server's access rules stop it reading, Dapper can add the one clause that allows it, with a saved copy of the old
+  rules. See [docs/application-accounts.md](docs/application-accounts.md).
+
 ### Migrate an existing directory to a server Dapper runs
 - A **Migrate** tab (when Dapper manages a server it doesn't run). **Check** reads the old directory and reports what
   will fit: counts, schema the new server doesn't know, how passwords are stored, and what isn't carried over.
