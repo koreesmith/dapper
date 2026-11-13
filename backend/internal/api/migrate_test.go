@@ -87,6 +87,12 @@ func TestKindsAndChecklist(t *testing.T) {
 		t.Errorf("escaped commas must not count as separators, got %d", migDepth("uid=a\\,b,ou=people,dc=x,dc=org"))
 	}
 	l := cutoverChecklist("localhost", "dc=x,dc=org", &migResult{Skipped: 2})
+	joined := strings.Join(l, "\n")
+	for _, want := range []string{"old directory manager", "refuses unencrypted", "err=49"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("the checklist should mention %q", want)
+		}
+	}
 	if len(l) < 8 || l[0][:20] != "The new server's cer" {
 		t.Errorf("checklist should warn about a localhost certificate first, got %q", l[0])
 	}

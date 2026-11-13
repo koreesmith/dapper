@@ -78,3 +78,31 @@ people keep their passwords. You can undo the switch until you finish.
 
 Directories up to 200,000 entries; the copy reads the whole directory into memory and goes entry by entry, so very large
 ones take a while. Only OpenLDAP is tested as the old server.
+
+## After the switch: applications that can't sign in
+
+When the switch is done and DNS points at the new server, Linux machines and applications may fail to sign in even though
+the data was copied exactly. In practice there are three causes, and the new server's own log tells you which one each
+client is hitting. Try a login, then run this on the machine that runs the server (replace `<server container>`):
+
+```sh
+docker logs --since 15m <server container> 2>&1 | awk '
+/ACCEPT from IP=/ {match($0,/conn=[0-9]+/); c=substr($0,RSTART,RLENGTH); match($0,/IP=[][0-9a-fA-F.:]+/); a=substr($0,RSTART+3,RLENGTH-3); sub(/:[0-9]+\]?$/,"",a); gsub(/[][]/,"",a); ip[c]=a}
+/ BIND dn=/ {match($0,/conn=[0-9]+/); c=substr($0,RSTART,RLENGTH); match($0,/dn="[^"]*"/); dn[c]=substr($0,RSTART+4,RLENGTH-5)}
+/RESULT tag=97 err=(49|13)/ {match($0,/conn=[0-9]+/); c=substr($0,RSTART,RLENGTH); match($0,/err=[0-9]+/); print ip[c], dn[c], substr($0,RSTART,RLENGTH)}
+/TLS negotiation failure/ {match($0,/conn=[0-9]+/); c=substr($0,RSTART,RLENGTH); print ip[c], "-", "TLS negotiation failure (certificate not trusted)"}' | sort | uniq -c | sort -rn
+```
+
+Each line is a count, the client's address, the login it tried and the result.
+
+| You see | Cause | Fix |
+|---|---|---|
+| `err=49` for `cn=admin,…` | The client still has the **old directory manager password**. The new server's was generated at the switch. | Give the client the new password (sssd: the Ansible role's bind password; applications: their LDAP settings). |
+| `err=13` | The client connects **without encryption**, which the new server refuses. | Switch it to StartTLS on port 389 or LDAPS on port 636. |
+| `TLS negotiation failure` | The client **doesn't trust the new certificate** (it is self-signed). | Install the certificate where the client looks for it. For `sssd`, `ldap_tls_cacert` (a bundle with the old and new certificates lets it trust either server while you can still roll back). For a container, mount the file in and point `TLS_CACERT` at it. For PHP on SELinux (Nextcloud), put the certificate in the system trust store with `update-ca-trust`, since a confined web process can't read files under `/etc/openldap`. |
+
+Passwords of people (not the directory manager) were copied as they are, so they keep working once the client can
+connect.
+
+A note on testing a bind by hand: `ldapwhoami -y <file>` treats a trailing newline in the file as part of the password,
+so a correct password appears to fail. Remove the newline (`printf %s`, or `tr -d '\n'`), or use `-W` and type it.
