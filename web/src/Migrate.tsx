@@ -195,6 +195,7 @@ function Switched({ r }: { r: MigSwitched }) {
     <div className="page narrow">
       <h2>Dapper is now using the new server</h2>
       <Notice kind="warn">Save these two passwords now. They are shown only this once. Dapper keeps the directory manager's password so it can work, but it never stores the configuration password.</Notice>
+      <p className="sub">These are <strong>new accounts on the new server</strong>. Your old server's own logins, such as its <code>cn=admin,cn=config</code> and the old directory manager's password, are not copied and stay with the old server. Your people's passwords did carry over.</p>
       <div className="panel">
         <h3>Directory manager</h3>
         <p className="sub">Full control of <code>{r.suffix}</code>. Sign in as <code>{r.managerDN}</code>.</p>

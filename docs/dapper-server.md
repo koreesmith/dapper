@@ -105,3 +105,24 @@ If something is wrong, put the old image back and restore the backup from step 1
 - **Dapper's own page.** Put Dapper behind an HTTPS reverse proxy as described in [production.md](production.md).
 - **Your own certificate.** Put `tls.crt` and `tls.key` (and `ca.crt` for a chain) in the `ldap-tls` volume before the
   first start; clients then don't need to trust a self-signed certificate.
+
+## If you lost the configuration password
+
+The configuration administrator (`cn=config-admin,cn=config`) is shown once, when the server is set up or a migration is
+switched, and Dapper never stores it. Anyone who can run commands inside the server container can set a new one: the
+container's own local socket needs no password. Run these where Dapper is installed:
+
+```sh
+C="docker compose -f docker-compose.yml -f docker-compose.server.yml"
+HASH=$($C exec -T openldap slappasswd -s 'a-new-long-password' | tr -d '\r\n')
+$C exec -T openldap ldapmodify -Q -Y EXTERNAL -H "ldapi://%2Frun%2Fslapd%2Fldapi" <<EOF
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+replace: olcRootPW
+olcRootPW: $HASH
+EOF
+```
+
+Then unlock the Server page with `cn=config-admin,cn=config` and the new password. To use a different login name (for
+example `cn=admin,cn=config`), run the same command with `replace: olcRootDN` and `olcRootDN: cn=admin,cn=config`.
+Avoid putting the password in your shell history on a shared machine.

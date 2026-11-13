@@ -56,6 +56,10 @@ people keep their passwords. You can undo the switch until you finish.
 - Indexes, the server's certificate (the new server has its own), replication, and other settings in the old server's own
   configuration. Features other than memberOf, referential integrity, unique values and last sign-in (for example
   password rules, replication and change logging) are listed so you can set them up again under Server.
+- The old server's own logins: its configuration administrator (for example `cn=admin,cn=config`) and the directory
+  manager's password. The new server has its own, generated at the switch and shown once: the configuration
+  administrator is `cn=config-admin,cn=config` and the directory manager is `cn=admin,<your base name>`. Everyone's
+  own password is carried over.
 - When each password was last changed, so password expiry clocks start again at the move.
 
 ## If something goes wrong
