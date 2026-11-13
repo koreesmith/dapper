@@ -27,6 +27,7 @@ type User struct {
 	Title      string   `json:"title,omitempty"`
 	Department string   `json:"department,omitempty"`
 	Suspended  bool     `json:"suspended"`
+	HasPhoto   bool     `json:"hasPhoto,omitempty"`
 
 	haystack []string // lowercased searchable text
 	digits   []string // digits-only phone numbers

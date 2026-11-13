@@ -46,8 +46,19 @@ req bob PUT "/api/admin/user/photo?dn=$(q $ALICE)" "$J/ok.jpg"; check "you can't
 # an admin sets and clears pictures
 req adm PUT "/api/admin/user/photo?dn=$(q $ALICE)" "$J/ok.jpg"; check "admin sets a picture for someone" 200
 req adm GET "/api/photo?dn=$(q $ALICE)"; check "admin reads it" 200
+
+# the People list shows who has a picture, and offers a small copy
+jreq adm GET "/api/admin/users?q=alice"; expect "the list says alice has a picture" "$(jq_ "[u['hasPhoto'] for u in d['users'] if u['username']=='alice'][0]")" True
+jreq adm GET "/api/admin/users?q=ada.reyes0"; expect "and that someone without one has none" "$(jq_ "[u.get('hasPhoto', False) for u in d['users'] if u['username']=='ada.reyes0'][0]")" False
+curl -s -D "$J/th.h" -o "$J/th.jpg" -b "$J/adm" -H 'X-Requested-With: dapper' "$BASE/api/photo?dn=$(q $ALICE)&size=thumb"
+expect "a small copy is served as a JPEG" "$(grep -ci '^content-type: image/jpeg' "$J/th.h")" 1
+ETAG=$(grep -i '^etag:' "$J/th.h" | tr -d '\r' | cut -d' ' -f2)
+expect "with a tag, so unchanged pictures aren't sent again" "$([ -n "$ETAG" ] && echo yes)" yes
+expect "asking again with the tag gets 304" "$(curl -s -o /dev/null -w '%{http_code}' -b "$J/adm" -H 'X-Requested-With: dapper' -H "If-None-Match: $ETAG" "$BASE/api/photo?dn=$(q $ALICE)&size=thumb")" 304
+req bob GET "/api/photo?dn=$(q $ALICE)&size=thumb"; check "the small copy follows the same rules (403 for others)" 403
 req adm DELETE "/api/admin/user/photo?dn=$(q $ALICE)"; check "admin removes it" 200
 req adm GET "/api/photo?dn=$(q $ALICE)"; check "it's gone" 404
+jreq adm GET "/api/admin/users?q=alice"; expect "the list no longer shows a picture" "$(jq_ "[u.get('hasPhoto', False) for u in d['users'] if u['username']=='alice'][0]")" False
 req adm DELETE "/api/admin/user/photo?dn=$(q $ALICE)"; check "removing again is harmless" 200
 
 # the administrators can stop people changing their own picture

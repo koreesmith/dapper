@@ -6,6 +6,8 @@ import { href } from "./router";
 type SortKey = "name" | "username" | "email";
 const PAGE_SIZES = [10, 25, 50, 100];
 
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
 export function UserList() {
   const [input, setInput] = useState("");
   const [q, setQ] = useState("");
@@ -114,7 +116,14 @@ export function UserList() {
             <tr key={u.dn} className={u.suspended ? "dim" : ""}>
               <td className="check"><input type="checkbox" aria-label={`Select ${u.name}`} checked={picked.includes(u.dn)}
                 onChange={(e) => setPicked(e.target.checked ? [...picked, u.dn] : picked.filter((d) => d !== u.dn))} /></td>
-              <td><a className="rowlink" href={href("#/person", u.dn)}>{u.name}</a>{u.title && <div className="sub">{u.title}</div>}</td>
+              <td>
+                <div className="namecell">
+                  {u.hasPhoto
+                    ? <img className="avatar small" src={api.thumbUrl(u.dn)} alt="" width={36} height={36} loading="lazy" decoding="async" />
+                    : <span className="avatar small blank" aria-hidden="true">{initials(u.name)}</span>}
+                  <span><a className="rowlink" href={href("#/person", u.dn)}>{u.name}</a>{u.title && <div className="sub">{u.title}</div>}</span>
+                </div>
+              </td>
               <td>{u.username}</td>
               <td>{u.email}</td>
               <td>{(u.phones ?? []).map((p) => <div key={p}>{p}</div>)}</td>

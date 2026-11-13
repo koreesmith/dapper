@@ -41,8 +41,18 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, _ *session.Se
 				return err
 			}
 			truncated = truncated || trunc
+			// Who has a picture: a presence search that returns no attributes, so no image data is read.
+			withPhoto := map[string]bool{}
+			if _, ok := s.field(photoField); ok {
+				if es, err := c.SearchAttrs(base, "(&(objectClass=person)("+photoField+"=*))", []string{"1.1"}, maxUsers); err == nil {
+					for _, e := range es {
+						withPhoto[strings.ToLower(e.DN)] = true
+					}
+				}
+			}
 			for _, e := range entries {
 				u := users.FromEntry(e)
+				u.HasPhoto = withPhoto[strings.ToLower(u.DN)]
 				u.Suspended = u.Suspended || s.isSuspendedDN(u.DN)
 				all = append(all, u)
 			}

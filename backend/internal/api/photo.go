@@ -2,7 +2,10 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"io"
 	"net/http"
@@ -37,6 +40,49 @@ func cleanPhoto(b []byte) ([]byte, error) {
 	}
 	var out bytes.Buffer
 	if err := jpeg.Encode(&out, img, &jpeg.Options{Quality: 85}); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// thumbSide is the longest side, in pixels, of the small pictures used in lists.
+const thumbSide = 72
+
+// thumbnail shrinks a JPEG so its longest side is at most side pixels (averaging the pixels it covers, so
+// it stays smooth). A picture already that small is returned as it is.
+func thumbnail(b []byte, side int) ([]byte, error) {
+	img, err := jpeg.Decode(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	sb := img.Bounds()
+	w, h := sb.Dx(), sb.Dy()
+	if w <= side && h <= side {
+		return b, nil
+	}
+	nw, nh := side, side
+	if w > h {
+		nh = max(1, h*side/w)
+	} else {
+		nw = max(1, w*side/h)
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, nw, nh))
+	for y := 0; y < nh; y++ {
+		y0, y1 := sb.Min.Y+y*h/nh, sb.Min.Y+(y+1)*h/nh
+		for x := 0; x < nw; x++ {
+			x0, x1 := sb.Min.X+x*w/nw, sb.Min.X+(x+1)*w/nw
+			var r, g, bl, n uint64
+			for yy := y0; yy < max(y1, y0+1); yy++ {
+				for xx := x0; xx < max(x1, x0+1); xx++ {
+					cr, cg, cb, _ := img.At(xx, yy).RGBA()
+					r, g, bl, n = r+uint64(cr), g+uint64(cg), bl+uint64(cb), n+1
+				}
+			}
+			dst.SetRGBA(x, y, color.RGBA{uint8(r / n >> 8), uint8(g / n >> 8), uint8(bl / n >> 8), 255})
+		}
+	}
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, dst, &jpeg.Options{Quality: 80}); err != nil {
 		return nil, err
 	}
 	return out.Bytes(), nil
@@ -86,10 +132,23 @@ func (s *Server) getPhoto(w http.ResponseWriter, r *http.Request, sess *session.
 		fail(w, http.StatusNotFound, "No picture.")
 		return
 	}
+	body := []byte(data)
+	if r.URL.Query().Get("size") == "thumb" { // small copy for lists
+		if t, err := thumbnail(body, thumbSide); err == nil {
+			body = t
+		}
+	}
+	sum := sha1.Sum(body)
+	etag := `"` + hex.EncodeToString(sum[:8]) + `"`
 	w.Header().Set("Content-Type", "image/jpeg")
-	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Cache-Control", "private, no-cache") // always checked, so a changed picture shows at once
+	w.Header().Set("ETag", etag)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write([]byte(data))
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	_, _ = w.Write(body)
 }
 
 func (s *Server) setPhoto(dn string, data []byte, w http.ResponseWriter) bool {

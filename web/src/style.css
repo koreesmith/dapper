@@ -222,3 +222,7 @@ th.check, td.check { width: 32px; padding-right: 0 !important; }
 .choices { display: grid; gap: .75rem; margin: 1rem 0; }
 .choice { display: grid; gap: .25rem; text-align: left; padding: 1rem; border: 1px solid var(--control-border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
 .choice:hover, .choice:focus-visible { border-color: var(--control-border); }
+
+/* people list: a small picture (or initials) to the left of the name */
+.namecell { display: flex; align-items: center; gap: .65rem; }
+.avatar.small { width: 36px; height: 36px; font-size: .8rem; }

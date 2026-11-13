@@ -16,7 +16,7 @@ export interface Me { dn: string; name: string; isAdmin: boolean; features: Feat
 
 export interface User {
   dn: string; username: string; name: string; email: string; phones: string[] | null;
-  title?: string; department?: string; suspended: boolean;
+  title?: string; department?: string; suspended: boolean; hasPhoto?: boolean;
 }
 export interface UserPage { users: User[]; total: number; page: number; pageSize: number; truncated: boolean }
 export interface UserQuery { q: string; sort: string; dir: "asc" | "desc"; status: string; page: number; pageSize: number }
@@ -190,6 +190,7 @@ export const api = {
 
   // profile photos
   photoUrl: (dn: string | null, v: number) => `/api/photo?${dn ? q(dn) + "&" : ""}v=${v}`,
+  thumbUrl: (dn: string) => `/api/photo?${q(dn)}&size=thumb`,
   setOwnPhoto: (b: Blob) => putPhoto("/api/me/photo", b),
   removeOwnPhoto: () => req("/api/me/photo", { method: "DELETE" }),
   setPhoto: (dn: string, b: Blob) => putPhoto(`/api/admin/user/photo?${q(dn)}`, b),
