@@ -16,7 +16,7 @@ req() { # req <jar> <method> <path> [json]
 }
 jq_() { python3 -c "import sys,json;d=json.load(sys.stdin);print(eval(sys.argv[1]))" "$1" <<<"$BODY"; }
 expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "ok   $1"; else FAIL=$((FAIL+1)); echo "FAIL $1 (got '$2', want '$3') ${BODY:0:300}"; fi; }
-SRC='{"sourceDN":"cn=admin,dc=example,dc=org","sourcePassword":"admin"'
+SRC='{"sourceDN":"cn=admin,dc=example,dc=org","sourcePassword":"admin","keepManager":true'
 wait_job() { for _ in $(seq 1 120); do req adm GET /api/admin/migration; [ "$(jq_ "d['job']['running']")" = False ] && return; sleep 1; done; }
 
 SETTINGS='{"ldap":{"url":"ldap://source-ldap:389","startTLS":false,"skipVerify":false,"bindDN":"cn=admin,dc=example,dc=org","bindPassword":"admin"},
@@ -58,6 +58,10 @@ expect "every entry was copied" "$(jq_ "d['job']['result']['failed'], d['job']['
 expect "and checked to be identical to the old one" "$(jq_ "d['job']['result']['verified'], d['job']['result']['mismatched']")" "(True, 0)"
 expect "the overlays were turned on at the new server" "$(jq_ "sorted(d['job']['result']['carriedOverlays'])")" "['memberof', 'refint']"
 expect "Dapper says it is ready to switch" "$(jq_ "d['readyToSwitch']")" True
+expect "the old directory manager is kept on the new server" "$(jq_ "d['job']['result']['managerKept'], d['job']['result']['managerDN']")" "(True, 'cn=admin,dc=example,dc=org')"
+if [ -n "${COMPOSE:-}" ]; then
+  expect "the OLD manager name and password sign in to the NEW server" "$($COMPOSE exec -T -e LDAPTLS_REQCERT=never openldap ldapwhoami -x -ZZ -H ldap://localhost -D cn=admin,dc=example,dc=org -w admin 2>&1 | tr -d '\r')" "dn:cn=admin,dc=example,dc=org"
+fi
 
 # --- run it again: nothing new, then one change on the old server is picked up ---
 req adm PATCH "/api/admin/user?dn=uid%3Dbob%2Cou%3Dpeople%2Cdc%3Dexample%2Cdc%3Dorg" '{"attrs":{"title":["Migrated"]}}'; expect "someone is changed on the old server" "$CODE" 200
@@ -68,8 +72,8 @@ expect "the repeat adds nothing and updates just the changed person" "$(jq_ "d['
 # --- switch ---
 req adm POST /api/admin/migration/switch '{}'; expect "switching needs approval" "$CODE" 400
 req adm POST /api/admin/migration/switch '{"confirmed":true}'; expect "Dapper switches to the new server" "$CODE" 200
-MGR=$(jq_ "d['managerPassword']")
-expect "the passwords are shown once" "$(jq_ "len(d['managerPassword'])>=20 and len(d['configPassword'])>=20")" True
+expect "no new manager password is made or shown when the old one is kept" "$(jq_ "d['managerKept'], 'managerPassword' in d, d['managerDN']")" "(True, False, 'cn=admin,dc=example,dc=org')"
+expect "the configuration password is shown once" "$(jq_ "len(d['configPassword'])>=20")" True
 expect "and there is a checklist" "$(jq_ "len(d['checklist'])>=8")" True
 req adm GET /api/admin/users; expect "old sessions end at the switch" "$CODE" 401
 req n POST /api/login '{"username":"alice","password":"alicepass"}'; expect "alice signs in against the new server with her old password" "$CODE" 200

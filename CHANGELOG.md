@@ -32,6 +32,8 @@ yourself.
   they are, then checks that the copy is identical. It can be repeated to pick up changes. **Switch** repoints Dapper and
   shows the new passwords once with a cutover checklist; **Roll back** returns to the old server; **Finish** forgets it.
   See [docs/migrating.md](docs/migrating.md).
+- **Keep the old directory manager** (on by default): the new server's directory manager is the old one, same name and
+  password, so applications that sign in as it keep working unchanged. Or choose a new generated password.
 - The Dapper-run server also checks more password schemes (SSHA256/384/512, PBKDF2, APR1) so people carried over from
   other servers can keep signing in.
 

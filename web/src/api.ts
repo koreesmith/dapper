@@ -116,7 +116,7 @@ export interface BackupsState {
   status?: { lastAttempt: number; lastSuccess: string; lastError: string; intervalHours: number; keep: number; dataBytes: number; diskFreeBytes: number; image: string };
 }
 
-export interface MigCreds { sourceDN: string; sourcePassword: string; skipUnsupported?: boolean; confirmed?: boolean }
+export interface MigCreds { sourceDN: string; sourcePassword: string; skipUnsupported?: boolean; keepManager?: boolean; confirmed?: boolean }
 export interface MigCheck {
   suffix: string; entries: number; kinds: Record<string, number>;
   unsupported: { kind: string; name: string; count: number; sample: string[] }[]; affectedEntries: number;
@@ -127,6 +127,7 @@ export interface MigCheck {
 export interface MigResult {
   sourceEntries: number; added: number; updated: number; unchanged: number; skipped: number; failed: number; failures?: string[];
   identical: number; mismatched: number; mismatchSample?: string[]; extras: number; extrasSample?: string[]; verified: boolean; carriedOverlays?: string[];
+  managerDN?: string; managerKept?: boolean;
 }
 export interface MigJob { running: boolean; phase: string; done: number; total: number; error?: string; result?: MigResult }
 export interface MigStatus {
@@ -134,7 +135,7 @@ export interface MigStatus {
   newServer?: { found: boolean; host?: string; reachable?: boolean; message?: string; reason?: "no-volume" | "server-down" | "already-used" | "unusable" };
 }
 export interface MigSwitched {
-  ok: boolean; suffix: string; host: string; managerDN: string; managerPassword: string; configDN: string; configPassword: string;
+  ok: boolean; suffix: string; host: string; managerDN: string; managerPassword?: string; managerKept?: boolean; configDN: string; configPassword: string;
   certificate: string; checklist: string[];
 }
 

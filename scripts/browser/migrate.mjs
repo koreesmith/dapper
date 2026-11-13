@@ -33,14 +33,14 @@ await p.getByText("Found Dapper's new server and connected to it").waitFor();
 ok("the new server is found", true);
 await scanThemes(p, "Migrate (before checking)");
 
-await p.getByLabel("Directory manager").fill("cn=admin,dc=example,dc=org");
-await p.getByLabel("Password").fill("wrong");
+await p.getByLabel("Directory manager", { exact: true }).fill("cn=admin,dc=example,dc=org");
+await p.getByLabel("Password", { exact: true }).fill("wrong");
 await p.getByRole("button", { name: "Check the old server" }).click();
 await p.getByText(/didn't accept that name and password/).waitFor();
 ok("a wrong manager password is explained plainly", true);
 consoleErrors.length = 0; // that refusal is a 400 on purpose
 
-await p.getByLabel("Password").fill("admin");
+await p.getByLabel("Password", { exact: true }).fill("admin");
 await p.getByRole("button", { name: "Check the old server" }).click();
 await p.getByText(/What Dapper found under/).waitFor();
 ok("the check reports what it found", await p.getByText(/\d+ entries: .*\d+ people/).isVisible());
@@ -49,6 +49,10 @@ const copyBtn = p.getByRole("button", { name: "Copy now" });
 ok("copying can't start before approval", await copyBtn.isDisabled());
 await scanThemes(p, "Migrate (after the check)");
 
+const keep = p.getByLabel(/Keep the old directory manager/);
+ok("keeping the old directory manager is on by default", await keep.isChecked());
+await keep.uncheck();   // this run takes the other path: a new, generated directory manager password
+ok("the page explains what a generated manager means", await p.getByText(/generated password, shown once after the switch/).isVisible());
 await p.getByLabel(/Yes, copy \d+ entries/).check();
 await copyBtn.click();
 await p.getByText("The copy is finished and checked").waitFor({ timeout: 120000 });

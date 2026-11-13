@@ -37,6 +37,11 @@ people keep their passwords. You can undo the switch until you finish.
    features, copies everything (parents first, people before groups) with password hashes exactly as they are, and then
    **checks** that every entry on the new server is identical to the old one. It shows progress, and reports anything that
    failed or differs.
+   **Keep the old directory manager** (ticked by default, recommended): the new server's directory manager is the account
+   you entered for the old server, with the same password, so applications and machines that sign in as it keep working
+   without any change. The login has to be inside the directory (a name like `cn=admin,cn=config` belongs to the old
+   server's own configuration and can't be reused). Untick it to get a new, generated directory manager password instead,
+   shown once after the switch; everything that signs in as the old directory manager then needs the new password.
    It can be run again: it adds what's new, updates what changed and never deletes. Run it once more just before the
    switch to pick up changes made in the meantime.
 4. **Switch** (Migrate → 4). Dapper starts managing the new server, and everyone is signed out (people sign in again
@@ -56,10 +61,9 @@ people keep their passwords. You can undo the switch until you finish.
 - Indexes, the server's certificate (the new server has its own), replication, and other settings in the old server's own
   configuration. Features other than memberOf, referential integrity, unique values and last sign-in (for example
   password rules, replication and change logging) are listed so you can set them up again under Server.
-- The old server's own logins: its configuration administrator (for example `cn=admin,cn=config`) and the directory
-  manager's password. The new server has its own, generated at the switch and shown once: the configuration
-  administrator is `cn=config-admin,cn=config` and the directory manager is `cn=admin,<your base name>`. Everyone's
-  own password is carried over.
+- The old server's own configuration login (for example `cn=admin,cn=config`). The new server has its own configuration
+  administrator, `cn=config-admin,cn=config`, generated at the switch and shown once. The directory manager is kept
+  (same name and password) unless you chose a generated one; everyone's own password is carried over either way.
 - When each password was last changed, so password expiry clocks start again at the move.
 
 ## If something goes wrong

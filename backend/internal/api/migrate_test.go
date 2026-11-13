@@ -86,7 +86,7 @@ func TestKindsAndChecklist(t *testing.T) {
 	if migDepth("uid=a\\,b,ou=people,dc=x,dc=org") != 4 {
 		t.Errorf("escaped commas must not count as separators, got %d", migDepth("uid=a\\,b,ou=people,dc=x,dc=org"))
 	}
-	l := cutoverChecklist("localhost", "dc=x,dc=org", &migResult{Skipped: 2})
+	l := cutoverChecklist("localhost", "dc=x,dc=org", &migResult{Skipped: 2}, false)
 	joined := strings.Join(l, "\n")
 	for _, want := range []string{"old directory manager", "refuses unencrypted", "err=49"} {
 		if !strings.Contains(joined, want) {
@@ -120,5 +120,32 @@ func TestDiagnoseNoHandoff(t *testing.T) {
 	}
 	if r, _ := diagnoseNoHandoff(errors.New("permission denied")); r != "unusable" {
 		t.Errorf("an unreadable file should be reported as such, got %q", r)
+	}
+}
+
+func TestChooseManager(t *testing.T) {
+	gen := func() string { return "generated-password" }
+	cases := []struct {
+		name           string
+		c              migCreds
+		wantDN, wantPW string
+		wantKept       bool
+	}{
+		{"kept: the old login inside the directory", migCreds{SourceDN: "cn=admin,dc=x,dc=org", SourcePassword: "old", KeepManager: true}, "cn=admin,dc=x,dc=org", "old", true},
+		{"kept keeps a different name too", migCreds{SourceDN: "cn=Manager,dc=x,dc=org", SourcePassword: "old", KeepManager: true}, "cn=Manager,dc=x,dc=org", "old", true},
+		{"name match ignores case", migCreds{SourceDN: "CN=admin,DC=X,DC=ORG", SourcePassword: "old", KeepManager: true}, "CN=admin,DC=X,DC=ORG", "old", true},
+		{"a configuration login can't be reused", migCreds{SourceDN: "cn=admin,cn=config", SourcePassword: "old", KeepManager: true}, "cn=admin,dc=x,dc=org", "generated-password", false},
+		{"not asked to keep: generate", migCreds{SourceDN: "cn=admin,dc=x,dc=org", SourcePassword: "old"}, "cn=admin,dc=x,dc=org", "generated-password", false},
+		{"nothing to keep without a password", migCreds{SourceDN: "cn=admin,dc=x,dc=org", KeepManager: true}, "cn=admin,dc=x,dc=org", "generated-password", false},
+	}
+	for _, c := range cases {
+		dn, pw, kept := chooseManager("dc=x,dc=org", c.c, gen)
+		if dn != c.wantDN || pw != c.wantPW || kept != c.wantKept {
+			t.Errorf("%s: got (%q, %q, %v), want (%q, %q, %v)", c.name, dn, pw, kept, c.wantDN, c.wantPW, c.wantKept)
+		}
+	}
+	l := strings.Join(cutoverChecklist("ldap.x.org", "dc=x,dc=org", nil, true), "\n")
+	if !strings.Contains(l, "same one as on the old server") || strings.Contains(l, "NEW directory manager password") {
+		t.Error("when the manager is kept, the checklist must not tell people to use a new password")
 	}
 }

@@ -14,6 +14,7 @@ export function Migrate() {
   const [pw, setPw] = useState("");
   const [check, setCheck] = useState<MigCheck | null>(null);
   const [skip, setSkip] = useState(false);
+  const [keepMgr, setKeepMgr] = useState(true); // keep the old directory manager and its password (recommended)
   const [approveCopy, setApproveCopy] = useState(false);
   const [approveSwitch, setApproveSwitch] = useState(false);
   const [busy, setBusy] = useState("");
@@ -32,7 +33,7 @@ export function Migrate() {
     setBusy(name); setErr("");
     try { await fn(); } catch (x) { setErr((x as Error).message); } finally { setBusy(""); }
   };
-  const creds = { sourceDN: dn.trim(), sourcePassword: pw, skipUnsupported: skip };
+  const creds = { sourceDN: dn.trim(), sourcePassword: pw, skipUnsupported: skip, keepManager: keepMgr };
 
   if (done) return <Switched r={done} />;
   if (!st) return <div className="page">{err ? <Notice kind="error">{err}</Notice> : "Loading…"}</div>;
@@ -112,6 +113,10 @@ export function Migrate() {
       <div className="panel">
         <h3>3. Copy</h3>
         <p className="sub">Creates the directory on the new server and copies everything, with passwords exactly as they are. It can be run again, so run it once more just before you switch to pick up changes made in the meantime. Nothing on the old server changes.</p>
+        <label className="inline"><input type="checkbox" checked={keepMgr} onChange={(e) => setKeepMgr(e.target.checked)} /> Keep the old directory manager and its password on the new server (recommended)</label>
+        <p className="sub">{keepMgr
+          ? <>The new server's directory manager will be <code>{dn.trim() || "the account you entered above"}</code> with the password you entered, so applications that sign in as it keep working without changes. The login must be inside the directory; one such as <code>cn=admin,cn=config</code> can't be reused. You can change the password later.</>
+          : <>Dapper will make a new directory manager (<code>cn=admin,…</code>) with a generated password, shown once after the switch. Anything that signs in as the old directory manager will need it.</>}</p>
         {check && check.blockers.length === 0 && (
           <label className="inline"><input type="checkbox" checked={approveCopy} onChange={(e) => setApproveCopy(e.target.checked)} /> Yes, copy {check.entries} entries to the new server</label>
         )}
@@ -138,6 +143,7 @@ export function Migrate() {
               <li>Added {res.added}, updated {res.updated}, already the same {res.unchanged}.</li>
               {res.skipped > 0 && <li>Left out {res.skipped} entries that use schema the new server doesn't have.</li>}
               {res.carriedOverlays && res.carriedOverlays.length > 0 && <li>Features turned on at the new server: {res.carriedOverlays.join(", ")}.</li>}
+              {res.managerDN && <li>Directory manager on the new server: <code>{res.managerDN}</code>{res.managerKept ? ", with the same password as on the old server." : ", with a new generated password (shown after the switch)."}</li>}
               {res.extras > 0 && <li>{res.extras} entries exist only on the new server (nothing was deleted).</li>}
             </ul>
             {res.failures && res.failures.length > 0 && <details><summary>Entries that failed</summary><pre className="code">{res.failures.join("\n")}</pre></details>}
@@ -194,12 +200,20 @@ function Switched({ r }: { r: MigSwitched }) {
   return (
     <div className="page narrow">
       <h2>Dapper is now using the new server</h2>
-      <Notice kind="warn">Save these two passwords now. They are shown only this once. Dapper keeps the directory manager's password so it can work, but it never stores the configuration password.</Notice>
-      <p className="sub">These are <strong>new accounts on the new server</strong>. Your old server's own logins, such as its <code>cn=admin,cn=config</code> and the old directory manager's password, are not copied and stay with the old server. Your people's passwords did carry over.</p>
+      <Notice kind="warn">{r.managerKept
+        ? "Save the configuration administrator's password now. It is shown only this once, and Dapper never stores it."
+        : "Save these two passwords now. They are shown only this once. Dapper keeps the directory manager's password so it can work, but it never stores the configuration password."}</Notice>
+      <p className="sub">{r.managerKept
+        ? <>The directory manager is the <strong>same as on the old server</strong> (<code>{r.managerDN}</code>, same password), so anything that signs in as it keeps working. The old server's own configuration login (such as <code>cn=admin,cn=config</code>) is not copied; the new server has its own, below. Your people's passwords carried over.</>
+        : <>These are <strong>new accounts on the new server</strong>. Your old server's own logins, such as its <code>cn=admin,cn=config</code> and the old directory manager's password, are not copied and stay with the old server. Your people's passwords did carry over.</>}</p>
       <div className="panel">
-        <h3>Directory manager</h3>
-        <p className="sub">Full control of <code>{r.suffix}</code>. Sign in as <code>{r.managerDN}</code>.</p>
-        <SecretBox value={r.managerPassword} />
+        {!r.managerKept && r.managerPassword && (
+          <>
+            <h3>Directory manager</h3>
+            <p className="sub">Full control of <code>{r.suffix}</code>. Sign in as <code>{r.managerDN}</code>.</p>
+            <SecretBox value={r.managerPassword} />
+          </>
+        )}
         <h3>Configuration administrator</h3>
         <p className="sub">Needed for the Server page. Sign in as <code>{r.configDN}</code>.</p>
         <SecretBox value={r.configPassword} />

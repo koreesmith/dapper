@@ -179,8 +179,9 @@ type migJob struct {
 }
 
 type migTarget struct {
-	suffix, managerPW string
-	verified          bool
+	suffix, managerDN, managerPW string
+	kept                         bool // the manager's name and password are the old server's, not generated
+	verified                     bool
 }
 
 type migState struct {
@@ -204,12 +205,25 @@ type migResult struct {
 	ExtrasSample    []string `json:"extrasSample,omitempty"`
 	Verified        bool     `json:"verified"`
 	CarriedOverlays []string `json:"carriedOverlays,omitempty"`
+	ManagerDN       string   `json:"managerDN"`
+	ManagerKept     bool     `json:"managerKept"`
 }
 
 func (s *Server) migJobSnapshot() migJob {
 	s.mig.mu.Lock()
 	defer s.mig.mu.Unlock()
 	return s.mig.job
+}
+
+// chooseManager decides the new directory's manager account. Keeping the old one means the same login and password
+// the person typed for the old server, as long as that login lives inside the directory being copied (a login such as
+// cn=admin,cn=config belongs to the old server's own configuration and can't be reused).
+func chooseManager(suffix string, c migCreds, generate func() string) (dn, pw string, kept bool) {
+	old := strings.TrimSpace(c.SourceDN)
+	if c.KeepManager && c.SourcePassword != "" && old != "" && strings.HasSuffix(strings.ToLower(old), strings.ToLower(suffix)) {
+		return old, c.SourcePassword, true
+	}
+	return "cn=admin," + suffix, generate(), false
 }
 
 // ---- the check ----
@@ -248,7 +262,10 @@ type migCreds struct {
 	SourceDN        string `json:"sourceDN"`
 	SourcePassword  string `json:"sourcePassword"`
 	SkipUnsupported bool   `json:"skipUnsupported"`
-	Confirmed       bool   `json:"confirmed"`
+	// KeepManager makes the new server's directory manager the old one (same name, same password), so
+	// applications that sign in as it keep working. Otherwise a new password is generated.
+	KeepManager bool `json:"keepManager"`
+	Confirmed   bool `json:"confirmed"`
 }
 
 func (s *Server) dialSource(c migCreds) (*ldapclient.Client, error) {
@@ -635,8 +652,7 @@ func (s *Server) runMigration(creds migCreds, suffix string, carry []migOverlay,
 	}
 	defer cc.Close()
 
-	managerDN := "cn=admin," + suffix
-	managerPW := generatePassword(24)
+	managerDN, managerPW, kept := chooseManager(suffix, creds, func() string { return generatePassword(24) })
 	s.migSet(func(j *migJob) { j.Phase = "Creating the directory on the new server" })
 	dbDN, err := createDatabase(cc, suffix, managerDN, managerPW)
 	if err != nil {
@@ -692,7 +708,7 @@ func (s *Server) runMigration(creds migCreds, suffix string, carry []migOverlay,
 	classes, _ := cc.ObjectClassNames()
 	attrs, _ := cc.AttributeNames()
 
-	res := &migResult{SourceEntries: len(entries), CarriedOverlays: carried}
+	res := &migResult{SourceEntries: len(entries), CarriedOverlays: carried, ManagerDN: managerDN, ManagerKept: kept}
 	var todo []ldapclient.Entry
 	skipped := map[string]bool{}
 	for _, e := range entries {
@@ -778,7 +794,7 @@ func (s *Server) runMigration(creds migCreds, suffix string, carry []migOverlay,
 	res.Verified = res.Failed == 0 && res.Mismatched == 0
 
 	s.mig.mu.Lock()
-	s.mig.target = migTarget{suffix: suffix, managerPW: managerPW, verified: res.Verified}
+	s.mig.target = migTarget{suffix: suffix, managerDN: managerDN, managerPW: managerPW, kept: kept, verified: res.Verified}
 	s.mig.job.Running, s.mig.job.Phase, s.mig.job.Done, s.mig.job.Total = false, "Finished", len(todo)*2, len(todo)*2
 	s.mig.job.Result, s.mig.job.Finished = res, time.Now()
 	s.mig.mu.Unlock()
@@ -787,14 +803,21 @@ func (s *Server) runMigration(creds migCreds, suffix string, carry []migOverlay,
 
 // ---- switching over, and back ----
 
-func cutoverChecklist(host, suffix string, r *migResult) []string {
+func managerChecklistItem(suffix string, kept bool) string {
+	if kept {
+		return "The directory manager is the same one as on the old server (same name, same password), so anything that signs in as it keeps working. Applications don't need the directory manager at all: give each one its own read-only account under Service accounts."
+	}
+	return "Anything that signs in to the directory as the old directory manager (for example cn=admin," + suffix + ") needs the NEW directory manager password shown on this page: sssd, and applications such as Semaphore, Zabbix, Nextcloud or Gitea. Better, give each application its own read-only account under Service accounts."
+}
+
+func cutoverChecklist(host, suffix string, r *migResult, keptManager bool) []string {
 	l := []string{
 		"Stop making changes on the old server while you switch. If anything changed since the last copy, run the copy again first: it updates what changed.",
 		"Point your DNS name (or the address your machines use for the directory) at the new server. Dapper can't change DNS for you.",
 		"Make sure ports 636 (LDAPS) and/or 389 (StartTLS) are open to your machines. The new server only accepts encrypted connections.",
 		"Give every machine and application the new server's certificate to trust (Server → Connect your machines has the download and commands).",
 		"Update `/etc/sssd/sssd.conf` or `ldap.conf` where the address, certificate or search base changed. The directory name stays " + suffix + ".",
-		"Anything that signs in to the directory as the old directory manager (for example cn=admin," + suffix + ") needs the NEW directory manager password shown on this page: sssd, and applications such as Semaphore, Zabbix, Nextcloud or Gitea. A read-only account for applications is safer than the directory manager.",
+		managerChecklistItem(suffix, keptManager),
 		"The new server refuses unencrypted connections. Applications still using plain ldap:// without StartTLS must switch to StartTLS on port 389 or LDAPS on port 636, and must trust the new certificate. Web applications in a container need the certificate file mounted in; PHP on a system with SELinux may need it in the system trust store (update-ca-trust) rather than under /etc/openldap.",
 		"To see which applications still fail, read the new server's log: docker logs --since 15m <server container> 2>&1 | grep -E 'TLS negotiation failure|RESULT tag=97 err=(49|13)'. err=49 is a wrong password, err=13 is an unencrypted connection, and a TLS negotiation failure means the client doesn't trust the certificate. See docs/migrating.md.",
 		"Review the new server's access rules under Server (they are not copied from the old one).",
@@ -844,7 +867,7 @@ func (s *Server) migrationSwitch(w http.ResponseWriter, r *http.Request, sess *s
 	cfg := *s.c()
 	prev := cfg.LDAP
 	cfg.PreviousLDAP = &prev
-	cfg.LDAP = config.LDAP{URL: bundledURL(), BindDN: "cn=admin," + t.suffix, BindPassword: t.managerPW, CAFile: s.caPath(), PublicHost: h.Host}
+	cfg.LDAP = config.LDAP{URL: bundledURL(), BindDN: t.managerDN, BindPassword: t.managerPW, CAFile: s.caPath(), PublicHost: h.Host}
 	checks, cc := s.runChecks(&cfg)
 	if cc != nil {
 		cc.Close()
@@ -863,12 +886,16 @@ func (s *Server) migrationSwitch(w http.ResponseWriter, r *http.Request, sess *s
 	s.mig.target = migTarget{}
 	s.mig.mu.Unlock()
 	audit(sess, "migration.switch", t.suffix)
-	writeJSON(w, map[string]any{
+	out := map[string]any{
 		"ok": true, "suffix": t.suffix, "host": h.Host,
-		"managerDN": "cn=admin," + t.suffix, "managerPassword": t.managerPW,
+		"managerDN": t.managerDN, "managerKept": t.kept,
 		"configDN": h.ConfigDN, "configPassword": h.ConfigPassword, "certificate": h.Certificate,
-		"checklist": cutoverChecklist(h.Host, t.suffix, res),
-	})
+		"checklist": cutoverChecklist(h.Host, t.suffix, res, t.kept),
+	}
+	if !t.kept {
+		out["managerPassword"] = t.managerPW // a generated password is shown once; a kept one is the person's own
+	}
+	writeJSON(w, out)
 }
 
 // migrationRollback puts Dapper back on the old server.
