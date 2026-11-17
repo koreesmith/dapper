@@ -20,3 +20,20 @@ If your mail server uses a certificate your computer does not trust, fix the cer
 isn't trusted" box is there for emergencies only.
 
 Changes are recorded on the Activity page (settings saved, test messages sent or failed). Passwords are never recorded.
+
+## Forgotten passwords
+
+Once email is on, the sign-in page shows **Forgot your password?**. The person enters their username or email address
+and Dapper emails a link to the address stored in their directory entry. The link:
+
+- works once and expires after an hour (a newer request replaces it, and restarting Dapper cancels outstanding links);
+- opens a page where they choose a new password, which has to follow the password rules;
+- ends every session that account had, anywhere.
+
+Dapper answers the same way whether or not the name exists or has an email address, so the page can't be used to find
+out who has an account. People without an email address, and suspended people, can't use it: an administrator resets
+those passwords from the People page, as before. Requests are limited per account and per address.
+
+After any password change (a reset by link, someone changing their own password, or an administrator resetting it)
+the person gets a "Your password was changed" email, so a change they didn't make is noticed. It never contains the
+password.

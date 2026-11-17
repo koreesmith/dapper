@@ -599,6 +599,8 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request, sess *ses
 	// Whoever may have been using the account (for example after a compromise) is signed out.
 	s.sessions.RevokeFor(dn, "")
 	audit(sess, "user.password.reset", dn)
+	s.resets.Revoke(dn)
+	s.notifyPasswordChanged(dn, "An administrator reset it.")
 	resp := map[string]any{"status": "ok"}
 	if generated {
 		resp["temporaryPassword"] = password

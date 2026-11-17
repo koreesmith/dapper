@@ -8,6 +8,20 @@
   words what went wrong. Email stays off until you turn it on. The saved password is never shown again. An unencrypted
   connection is only allowed to a mail server on the same machine. See [docs/email.md](docs/email.md).
 
+### Forgotten passwords
+- **"Forgot your password?"** appears on the sign-in page once email is on. The person enters their username or
+  email address; Dapper emails a link to the address the directory holds for them (never to what was typed).
+- **One-time links** that expire after an hour. Only a fingerprint of the link is kept, a new request replaces the
+  old link, and links are forgotten when Dapper restarts. The new password has to pass the usual password rules, and
+  a typo doesn't use up the link.
+- **Nothing gives accounts away:** the answer is the same for a real name, an unknown one, and a person with no
+  email address, and the work happens after the answer is sent. Requests are rate limited per account and per
+  address.
+- **Signed out everywhere:** a reset ends every session the account had. Suspended people can't use it.
+- **"Your password was changed" email** after every password change: a reset by link, a person changing their own,
+  or an administrator's reset. It never contains the password.
+- Requests, resets and refused links are on the Activity page.
+
 ## 2.0.0
 
 Dapper can now run your directory server too. Everything from 1.0.0 still works unchanged with a server you run

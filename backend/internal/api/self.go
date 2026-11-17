@@ -128,6 +128,8 @@ func (s *Server) changeOwnPassword(w http.ResponseWriter, r *http.Request, sess 
 	}
 	s.sessions.RevokeFor(sess.DN, sess.ID) // other devices must sign in again; this one carries on
 	audit(sess, "password.change", sess.DN)
+	s.resets.Revoke(sess.DN)
+	s.notifyPasswordChanged(sess.DN, "You changed it yourself on the My account page.")
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 

@@ -13,7 +13,9 @@ import (
 	auditrec "github.com/koreesmith/dapper/backend/internal/audit"
 	"github.com/koreesmith/dapper/backend/internal/config"
 	"github.com/koreesmith/dapper/backend/internal/ldapclient"
+	"github.com/koreesmith/dapper/backend/internal/mail"
 	"github.com/koreesmith/dapper/backend/internal/policy"
+	"github.com/koreesmith/dapper/backend/internal/resets"
 	"github.com/koreesmith/dapper/backend/internal/session"
 )
 
@@ -27,6 +29,8 @@ type Server struct {
 	policy   *policy.Policy
 	sessions *session.Store
 	limit    *limiter
+	resets   *resets.Store
+	sender   func(mail.Message) error // tests replace the real mail sender
 
 	mig        migState // a migration into a Dapper-run server, if one is under way
 	setupMu    sync.Mutex
@@ -39,6 +43,7 @@ func New(store *config.Store, pol *policy.Policy) *Server {
 		store:    store,
 		policy:   pol,
 		limit:    newLimiter(),
+		resets:   resets.NewStore(),
 		sessions: session.NewStore(cfg.Session.IdleTimeout, cfg.Session.MaxAge),
 	}
 	if !store.Configured() {
@@ -75,6 +80,10 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.HandleFunc("POST /api/logout", s.logout)
 	mux.HandleFunc("GET /api/me", s.user(s.me))
+	mux.HandleFunc("GET /api/password/forgot", s.forgotStatus)
+	mux.HandleFunc("POST /api/password/forgot", s.forgot)
+	mux.HandleFunc("POST /api/password/reset/check", s.resetCheck)
+	mux.HandleFunc("POST /api/password/reset", s.resetPasswordByLink)
 
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
 	mux.HandleFunc("POST /api/setup/discover", s.setupGate(s.setupDiscover))

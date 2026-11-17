@@ -16,6 +16,7 @@ import { Migrate } from "./Migrate";
 import { ServiceAccounts } from "./ServiceAccounts";
 import { Email } from "./Email";
 import { Setup } from "./Setup";
+import { ForgotPassword, ResetPassword } from "./ForgotPassword";
 import { go, useRoute } from "./router";
 
 export function App() {
@@ -23,6 +24,7 @@ export function App() {
   const [checked, setChecked] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [ended, setEnded] = useState(false);
+  const route = useRoute();
 
   // Any request that finds the session gone sends the person back to sign in; the address
   // (which page they were on) is left alone, so they come back to it after signing in.
@@ -37,6 +39,8 @@ export function App() {
 
   if (!checked) return null;
   if (!configured) return <Setup onDone={() => { setConfigured(true); go("/"); }} />;
+  if (!me && route === "/forgot") return <ForgotPassword />;
+  if (!me && route.startsWith("/reset/")) return <ResetPassword key={route} token={route.slice("/reset/".length)} />;
   if (!me) return <Login ended={ended} onSignedIn={(m) => {
     setMe(m); setEnded(false);
     const here = decodeURIComponent(window.location.hash.replace(/^#/, "")) || "/";
@@ -56,6 +60,8 @@ function Login({ onSignedIn, ended }: { onSignedIn: (m: Me) => void; ended?: boo
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [canReset, setCanReset] = useState(false);
+  useEffect(() => { api.forgotStatus().then((r) => setCanReset(r.enabled)).catch(() => {}); }, []);
 
   return (
     <>
@@ -77,6 +83,7 @@ function Login({ onSignedIn, ended }: { onSignedIn: (m: Me) => void; ended?: boo
         </label>
         {err && <p className="error" role="alert">{err}</p>}
         <button disabled={busy || !username || !password}>{busy ? "Signing in…" : "Sign in"}</button>
+        {canReset && <a href="#/forgot" onClick={() => go("/forgot")}>Forgot your password?</a>}
       </form>
       <VersionNote />
     </>

@@ -196,6 +196,10 @@ async function putPhoto(path: string, blob: Blob): Promise<void> {
 }
 
 export const api = {
+  forgotStatus: () => req<{ enabled: boolean }>("/api/password/forgot"),
+  forgotPassword: (username: string) => req<{ message: string }>("/api/password/forgot", json("POST", { username })),
+  checkReset: (token: string) => req<{ valid: boolean; minLength: number }>("/api/password/reset/check", json("POST", { token })),
+  resetByLink: (token: string, password: string) => req<{ status: string }>("/api/password/reset", json("POST", { token, password })),
   login: (username: string, password: string) => req<Me>("/api/login", json("POST", { username, password })),
   logout: () => req<void>("/api/logout", { method: "POST" }),
   me: () => req<Me>("/api/me"),
