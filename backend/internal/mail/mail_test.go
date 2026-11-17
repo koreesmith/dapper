@@ -142,3 +142,27 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestMessageIDIsPresentUniqueAndInTheSendersDomain(t *testing.T) {
+	s := base(25)
+	ids := map[string]bool{}
+	for i := 0; i < 3; i++ {
+		out, err := Build(s, Message{To: "ann@example.org", Subject: "x", Body: "y"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var id string
+		for _, l := range strings.Split(string(out), "\r\n") {
+			if strings.HasPrefix(l, "Message-ID: ") {
+				id = strings.TrimPrefix(l, "Message-ID: ")
+			}
+		}
+		if !strings.HasPrefix(id, "<") || !strings.HasSuffix(id, "@example.org>") {
+			t.Fatalf("bad Message-ID %q", id)
+		}
+		if ids[id] {
+			t.Fatalf("Message-ID repeated: %q", id)
+		}
+		ids[id] = true
+	}
+}
