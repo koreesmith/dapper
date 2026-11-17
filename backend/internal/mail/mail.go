@@ -3,7 +3,9 @@
 package mail
 
 import (
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"mime"
@@ -91,10 +93,23 @@ func Build(s Settings, m Message) ([]byte, error) {
 	b.WriteString("To: " + to.String() + "\r\n")
 	b.WriteString("Subject: " + encodeSubject(m.Subject) + "\r\n")
 	b.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
+	b.WriteString("Message-ID: " + messageID(from.Address) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n")
 	b.WriteString("Auto-Submitted: auto-generated\r\n\r\n")
 	b.WriteString(body)
 	return []byte(b.String()), nil
+}
+
+// messageID makes a unique id in the sender's own domain. Receiving servers, Google's in particular, treat mail
+// without one as suspect.
+func messageID(sender string) string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	domain := "localhost"
+	if i := strings.LastIndex(sender, "@"); i >= 0 && i < len(sender)-1 {
+		domain = sender[i+1:]
+	}
+	return "<" + hex.EncodeToString(b) + "@" + domain + ">"
 }
 
 func encodeSubject(s string) string {
