@@ -8,7 +8,7 @@ import (
 )
 
 // fakeSMTP is a minimal plain-text SMTP server that records what it is sent.
-func fakeSMTP(t *testing.T, authOK bool) (port int, got chan string) {
+func fakeSMTP(t *testing.T, authOK bool) (port int, got chan string, helo chan string) {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -16,6 +16,7 @@ func fakeSMTP(t *testing.T, authOK bool) (port int, got chan string) {
 	}
 	t.Cleanup(func() { l.Close() })
 	got = make(chan string, 1)
+	helo = make(chan string, 1)
 	go func() {
 		c, err := l.Accept()
 		if err != nil {
@@ -45,6 +46,10 @@ func fakeSMTP(t *testing.T, authOK bool) (port int, got chan string) {
 			}
 			switch {
 			case strings.HasPrefix(line, "EHLO"):
+				select {
+				case helo <- strings.TrimSpace(strings.TrimPrefix(line, "EHLO")):
+				default:
+				}
 				w("250-fake")
 				w("250 AUTH PLAIN")
 			case strings.HasPrefix(line, "AUTH"):
@@ -66,7 +71,7 @@ func fakeSMTP(t *testing.T, authOK bool) (port int, got chan string) {
 			}
 		}
 	}()
-	return l.Addr().(*net.TCPAddr).Port, got
+	return l.Addr().(*net.TCPAddr).Port, got, helo
 }
 
 func base(port int) Settings {
@@ -74,7 +79,7 @@ func base(port int) Settings {
 }
 
 func TestSendDelivers(t *testing.T) {
-	port, got := fakeSMTP(t, true)
+	port, got, _ := fakeSMTP(t, true)
 	s := base(port)
 	s.Username, s.Password = "u", "p"
 	if err := Send(s, Message{To: "ann@example.org", Subject: "Hello", Body: "line one\nline two"}); err != nil {
@@ -89,7 +94,7 @@ func TestSendDelivers(t *testing.T) {
 }
 
 func TestSendBadPasswordIsExplained(t *testing.T) {
-	port, _ := fakeSMTP(t, false)
+	port, _, _ := fakeSMTP(t, false)
 	s := base(port)
 	s.Username, s.Password = "u", "wrong"
 	err := Send(s, Message{To: "ann@example.org", Subject: "x", Body: "y"})
@@ -164,5 +169,32 @@ func TestMessageIDIsPresentUniqueAndInTheSendersDomain(t *testing.T) {
 			t.Fatalf("Message-ID repeated: %q", id)
 		}
 		ids[id] = true
+	}
+}
+
+func TestGreetsWithTheConfiguredHostName(t *testing.T) {
+	port, _, helo := fakeSMTP(t, true)
+	s := base(port)
+	s.Helo = HeloFromURL("https://dapper.example.org:8443/")
+	if err := Send(s, Message{To: "ann@example.org", Subject: "x", Body: "y"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-helo; got != "dapper.example.org" {
+		t.Errorf("greeted as %q", got)
+	}
+}
+
+func TestHeloFromURL(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://dapper.example.org":     "dapper.example.org",
+		"http://10.0.0.5:8080":           "10.0.0.5",
+		"https://dapper.example.org/#/x": "dapper.example.org",
+		"":                               "",
+		"not a url":                      "",
+		"https://bad host.example.org":   "",
+	} {
+		if got := HeloFromURL(in); got != want {
+			t.Errorf("HeloFromURL(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

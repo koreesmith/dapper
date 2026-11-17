@@ -21,6 +21,17 @@ isn't trusted" box is there for emergencies only.
 
 Changes are recorded on the Activity page (settings saved, test messages sent or failed). Passwords are never recorded.
 
+## Making sure the mail arrives
+
+Mail from a small server often lands in spam, however correct Dapper is. What helps, in order of effect:
+
+- **Send from an address on a domain you control, through that domain's own mail server,** and publish **SPF, DKIM and DMARC** for the domain. DKIM in particular: without a signature, big providers are quick to distrust a message with a link in it. Most hosting panels have a switch for it (often called "Email Deliverability").
+- **Allow the sender** where you receive the mail: in Google Workspace, add the sending domain to the allowlist under Apps > Google Workspace > Gmail > Spam, phishing and malware. Marking one message "Not spam" also helps for a while.
+- **Use the real web address.** Dapper greets the mail server with the host name from "Dapper's web address" (not "localhost"), and names that host in each message.
+- **Choose a clear sender name.** The name you enter under "Sender name" appears in the From line, the subject ("Reset your <name> password") and the signature.
+
+If a message never shows up, the Activity page says whether Dapper handed it to your mail server (`link sent`) or not. After that, the mail server's own log and the receiving provider's message trace are the places to look.
+
 ## Forgotten passwords
 
 Once email is on, the sign-in page shows **Forgot your password?**. The person enters their username or email address
