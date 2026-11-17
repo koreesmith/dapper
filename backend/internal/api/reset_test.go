@@ -117,3 +117,25 @@ func TestGuessingLinksIsLimited(t *testing.T) {
 		t.Errorf("repeated wrong links should be slowed down, got %d", code)
 	}
 }
+
+func TestEmailWording(t *testing.T) {
+	e := entryOf(map[string][]string{"givenName": {"Koree"}, "uid": {"koree"}})
+	if g := greeting(e); g != "Hello Koree,\n\n" {
+		t.Errorf("greeting: %q", g)
+	}
+	if g := greeting(entryOf(map[string][]string{})); g != "Hello,\n\n" {
+		t.Errorf("greeting without a first name: %q", g)
+	}
+	if g := greeting(entryOf(map[string][]string{"givenName": {"Evil\r\nBcc: x@example.org"}})); strings.Contains(g, "Bcc") {
+		t.Errorf("a name with a line break must not reach the message: %q", g)
+	}
+	if a := accountName(e, "uid=koree,ou=p,dc=x"); a != "koree" {
+		t.Errorf("account name: %q", a)
+	}
+	if a := accountName(entryOf(map[string][]string{}), "uid=koree,ou=p,dc=x"); a != "uid=koree,ou=p,dc=x" {
+		t.Errorf("account name falls back to the entry name: %q", a)
+	}
+	if h := hostOf("https://dapper.example.org:8443"); h != "dapper.example.org:8443" {
+		t.Errorf("host: %q", h)
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -33,7 +34,8 @@ type Settings struct {
 	Password   string
 	From       string // address
 	FromName   string
-	SkipVerify bool // accept a certificate that isn't trusted (not recommended)
+	SkipVerify bool   // accept a certificate that isn't trusted (not recommended)
+	Helo       string // the name Dapper gives when it greets the server; empty means "localhost"
 }
 
 // Timeout bounds a whole send.
@@ -59,6 +61,31 @@ func (s Settings) Validate() error {
 		return errors.New("settings can't contain line breaks")
 	}
 	return nil
+}
+
+// validHelo accepts a plain host name or address, nothing that could carry extra commands.
+func validHelo(h string) bool {
+	if h == "" || len(h) > 253 {
+		return false
+	}
+	for _, r := range h {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// HeloFromURL returns the host of Dapper's web address, for use as the greeting name, or "" if it isn't usable.
+func HeloFromURL(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	if h := u.Hostname(); validHelo(h) {
+		return h
+	}
+	return ""
 }
 
 func isLocal(host string) bool {
@@ -152,6 +179,12 @@ func Send(s Settings, m Message) error {
 		return errors.New("the server didn't answer like a mail server; check the port and encryption setting")
 	}
 	defer c.Close()
+	// Say who we are with a real host name: "localhost" is a spam signal for many receiving servers.
+	if h := strings.TrimSpace(s.Helo); h != "" && validHelo(h) {
+		if err := c.Hello(h); err != nil {
+			return fmt.Errorf("the mail server refused the greeting: %s", short(err))
+		}
+	}
 	if s.Security == StartTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return errors.New("the mail server doesn't offer STARTTLS; choose another encryption setting")

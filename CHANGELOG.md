@@ -22,6 +22,11 @@
   or an administrator's reset. It never contains the password.
 - Requests, resets and refused links are on the Activity page.
 
+### Email that arrives
+- Every message carries a `Message-ID`, and Dapper greets the mail server with the host name from its web address
+  instead of "localhost". The reset and notice emails greet the person by first name, name the account and the site, and
+  carry the sender name you chose in the subject. See "Making sure the mail arrives" in [docs/email.md](docs/email.md).
+
 ## 2.0.0
 
 Dapper can now run your directory server too. Everything from 1.0.0 still works unchanged with a server you run

@@ -51,7 +51,7 @@ func mailFromIO(cur config.Mail, o mailIO) config.Mail {
 // MailSettings converts saved settings for the sender.
 func mailSettings(m config.Mail) mail.Settings {
 	return mail.Settings{Host: m.Host, Port: m.Port, Security: m.Security, Username: m.Username, Password: m.Password,
-		From: m.From, FromName: m.FromName, SkipVerify: m.SkipVerify}
+		From: m.From, FromName: m.FromName, SkipVerify: m.SkipVerify, Helo: mail.HeloFromURL(m.PublicURL)}
 }
 
 func (s *Server) mailGet(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
@@ -99,7 +99,7 @@ func (s *Server) mailTest(w http.ResponseWriter, r *http.Request, sess *session.
 	err := mail.Send(mailSettings(m), mail.Message{
 		To:      strings.TrimSpace(in.To),
 		Subject: "Dapper test message",
-		Body:    "This is a test message from Dapper.\n\nIf you can read it, Dapper can send email through the server you set up.\n",
+		Body:    "This is a test message from " + m.FromName + ".\n\nIf you can read it, Dapper can send email through the server you set up.\n",
 	})
 	if err != nil {
 		audit(sess, "mail.test.failed", "settings")

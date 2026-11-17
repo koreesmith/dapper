@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ func (s *Server) sendResetLink(who, ip string) {
 		audit(nil, "password.forgot", who, "ip", ip, "result", "no such account")
 		return
 	}
-	e, err := svc.GetAttrs(dn, []string{"mail", "pwdAccountLockedTime"})
+	e, err := svc.GetAttrs(dn, []string{"mail", "uid", "givenName", "pwdAccountLockedTime"})
 	if err == nil && len(e.Values("pwdAccountLockedTime")) > 0 { // suspended by locking
 		audit(nil, "password.forgot", dn, "ip", ip, "result", "account suspended")
 		return
@@ -92,9 +93,12 @@ func (s *Server) sendResetLink(who, ip string) {
 		return
 	}
 	link := cfg.Mail.PublicURL + "/#/reset/" + tok
-	err = s.send(cfg.Mail, mail.Message{To: to, Subject: "Choose a new password", Body: "Someone asked to choose a new password for your account" +
-		" (if that wasn't you, you can ignore this message and nothing will change).\n\n" +
-		"To choose a new password, open this link. It works once and expires in an hour:\n\n" + link + "\n"})
+	site, host := siteName(cfg.Mail), hostOf(cfg.Mail.PublicURL)
+	err = s.send(cfg.Mail, mail.Message{To: to, Subject: "Reset your " + site + " password", Body: greeting(e) +
+		"We received a request to reset the password for the account \"" + accountName(e, dn) + "\" on " + host + ".\n\n" +
+		"To choose a new password, open this link within the next hour. It can be used once:\n\n" + link + "\n\n" +
+		"If you didn't ask for this, you can ignore this message. Your password stays the same until someone opens the link and chooses a new one.\n\n" +
+		site + "\n"})
 	if err != nil {
 		s.resets.Revoke(dn)
 		log.Printf("password reset: sending to %s failed: %v", to, err)
@@ -102,6 +106,37 @@ func (s *Server) sendResetLink(who, ip string) {
 		return
 	}
 	audit(nil, "password.forgot", dn, "ip", ip, "result", "link sent")
+}
+
+// siteName is how the emails name Dapper: the sender name the administrator chose.
+func siteName(m config.Mail) string {
+	if n := strings.TrimSpace(m.FromName); n != "" {
+		return n
+	}
+	return "Dapper"
+}
+
+func hostOf(publicURL string) string {
+	if u, err := url.Parse(publicURL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return publicURL
+}
+
+// greeting opens an email with the person's first name when the directory has one.
+func greeting(e *ldapclient.Entry) string {
+	if g := strings.TrimSpace(first(e.Values("givenName"))); g != "" && !strings.ContainsAny(g, "\r\n") {
+		return "Hello " + g + ",\n\n"
+	}
+	return "Hello,\n\n"
+}
+
+// accountName is the username shown in an email, or the entry's own name if there is none.
+func accountName(e *ldapclient.Entry, dn string) string {
+	if u := strings.TrimSpace(first(e.Values("uid"))); u != "" && !strings.ContainsAny(u, "\r\n") {
+		return u
+	}
+	return dn
 }
 
 // send delivers one email with the saved settings (tests replace s.sender).
@@ -192,14 +227,16 @@ func (s *Server) notifyPasswordChanged(dn, how string) {
 			return
 		}
 		defer svc.Close()
-		e, err := svc.GetAttrs(dn, []string{"mail"})
+		e, err := svc.GetAttrs(dn, []string{"mail", "uid", "givenName"})
 		if err != nil || len(e.Values("mail")) == 0 {
 			return
 		}
 		to := strings.TrimSpace(e.Values("mail")[0])
-		err = s.send(cfg.Mail, mail.Message{To: to, Subject: "Your password was changed", Body: "The password for your account was changed on " +
+		site := siteName(cfg.Mail)
+		err = s.send(cfg.Mail, mail.Message{To: to, Subject: "Your password was changed", Body: greeting(e) +
+			"The password for the account \"" + accountName(e, dn) + "\" on " + hostOf(cfg.Mail.PublicURL) + " was changed on " +
 			time.Now().Format("2 January 2006 at 15:04 MST") + ".\n\n" + how + "\n\n" +
-			"If this was you, there is nothing more to do. If it wasn't, contact your administrator right away.\n"})
+			"If this was you, there is nothing more to do. If it wasn't, contact your administrator right away.\n\n" + site + "\n"})
 		if err != nil {
 			log.Printf("password changed notice to %s failed: %v", to, err)
 		}

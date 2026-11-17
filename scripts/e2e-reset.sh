@@ -74,6 +74,8 @@ waitmail 1; expect "exactly one email was sent (nothing for the unknown name or 
 sleep 1; expect "still one" "$(count)" 1
 expect "it went to the address on file" "$(last | grep -c "^To: <$U@example.org>")" 1
 TOK=$(tokenof); expect "it holds a link to Dapper" "$([ -n "$TOK" ] && echo yes)" yes
+expect "the subject names the site" "$(last | grep -c '^Subject: Reset your Dapper password')" 1
+expect "it greets the person by first name and names the account" "$(last | grep -c "^Hello Re,")$(last | grep -c "\"$U\"")" 11
 expect "the link starts with Dapper's own address" "$(last | grep -c "$BASE/#/reset/")" 1
 
 # --- the link ---
