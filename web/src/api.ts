@@ -53,6 +53,10 @@ export interface SettingsIO {
   session: { idleMinutes: number; maxHours: number };
   unix: { enabled: boolean; uidMin: number; uidMax: number; homePattern: string; defaultShell: string; shadow: boolean; sshKeys: boolean };
 }
+export interface MailSettings {
+  enabled: boolean; host: string; port: number; security: "starttls" | "tls" | "none"; username: string; password?: string; passwordSet: boolean;
+  from: string; fromName: string; skipVerify: boolean; publicURL: string;
+}
 export interface Check { key: string; ok: boolean; warn?: boolean; message: string; missing?: string }
 export interface SettingsPayload { settings: SettingsIO; locked: Record<string, boolean>; checks: Check[]; fields: Field[] }
 export interface SetupAdmin { mode: "existing" | "person" | "new"; username: string; givenName: string; sn: string; password: string }
@@ -275,6 +279,9 @@ export const api = {
   activity: (p: { q: string; category: string; page: number }) =>
     req<ActivityPage>(`/api/admin/audit?q=${encodeURIComponent(p.q)}&category=${p.category}&page=${p.page}&pageSize=50`),
 
+  mail: () => req<{ mail: MailSettings }>("/api/admin/mail"),
+  saveMail: (m: MailSettings) => req<{ mail: MailSettings }>("/api/admin/mail", json("PUT", m)),
+  testMail: (m: MailSettings, to: string) => req<{ status: string }>("/api/admin/mail/test", json("POST", { ...m, to })),
   ca: () => req<CAState>("/api/admin/ca"),
   setCA: (pem: string) => req<CAState>("/api/admin/ca", json("PUT", { pem })),
   serviceAccounts: () => req<ServiceAccountsState>("/api/admin/service-accounts"),

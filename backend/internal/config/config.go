@@ -9,6 +9,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/koreesmith/dapper/backend/internal/mail"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,6 +34,7 @@ type Settings struct {
 	Password Password `yaml:"password"`
 	Session  Session  `yaml:"session"`
 	Unix     Unix     `yaml:"unix"`
+	Mail     Mail     `yaml:"mail"`
 }
 
 // Config is Settings plus process-level options that need a restart to change.
@@ -92,6 +95,23 @@ type Unix struct {
 	DefaultShell string `yaml:"defaultShell"` //
 	Shadow       bool   `yaml:"shadow"`       // also add the shadowAccount object class
 	SSHKeys      bool   `yaml:"sshKeys"`      // manage SSH public keys (ldapPublicKey)
+}
+
+// Mail is the outgoing mail server, used for password reset links and notices. It is off until an
+// administrator sets it up and sends a test message.
+type Mail struct {
+	Enabled    bool   `yaml:"enabled"`
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	Security   string `yaml:"security"` // starttls, tls or none
+	Username   string `yaml:"username"`
+	Password   string `yaml:"password"` // never sent to the browser
+	From       string `yaml:"from"`
+	FromName   string `yaml:"fromName"`
+	SkipVerify bool   `yaml:"skipVerify"`
+	// PublicURL is the address people use to reach Dapper. Links in emails are built from it, never from the
+	// request, so a forged Host header can't point a reset link somewhere else.
+	PublicURL string `yaml:"publicURL"`
 }
 
 type Session struct {
@@ -157,6 +177,15 @@ func (c *Config) WithDefaults() {
 	if c.Unix.DefaultShell == "" {
 		c.Unix.DefaultShell = "/bin/bash"
 	}
+	if c.Mail.Port == 0 {
+		c.Mail.Port = 587
+	}
+	if c.Mail.Security == "" {
+		c.Mail.Security = "starttls"
+	}
+	if c.Mail.FromName == "" {
+		c.Mail.FromName = "Dapper"
+	}
 	if c.Session.IdleTimeout == 0 {
 		c.Session.IdleTimeout = 30 * time.Minute
 	}
@@ -184,6 +213,15 @@ func (c *Config) Validate() error {
 			return errors.New("the home directory pattern must be an absolute path without spaces, such as /home/%u")
 		case !strings.HasPrefix(u.DefaultShell, "/") || strings.ContainsAny(u.DefaultShell, " \t\n"):
 			return errors.New("the default login shell must be an absolute path such as /bin/bash")
+		}
+	}
+	if c.Mail.Enabled {
+		m := c.Mail
+		if err := (mail.Settings{Host: m.Host, Port: m.Port, Security: m.Security, From: m.From, FromName: m.FromName}).Validate(); err != nil {
+			return err
+		}
+		if u, err := url.Parse(m.PublicURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			return errors.New("enter Dapper's web address as it appears in a browser, for example https://dapper.example.org")
 		}
 	}
 	for _, u := range []string{c.LDAP.URL} {

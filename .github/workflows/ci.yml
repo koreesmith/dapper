@@ -104,6 +104,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           BASE=http://localhost:8080 node demo.mjs
+          BASE=http://localhost:8080 node email.mjs
       - name: Logs on failure
         if: failure()
         run: $COMPOSE logs

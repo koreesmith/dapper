@@ -14,6 +14,7 @@ import { ImportPeople } from "./ImportPeople";
 import { Units } from "./Units";
 import { Migrate } from "./Migrate";
 import { ServiceAccounts } from "./ServiceAccounts";
+import { Email } from "./Email";
 import { Setup } from "./Setup";
 import { go, useRoute } from "./router";
 
@@ -90,7 +91,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   const sec = section(path);
 
   // Send people to a sensible home, and keep non-admins out of admin screens.
-  const adminOnly = ["people", "person", "units", "groups", "group", "settings", "server", "activity", "advanced", "migrate", "service-accounts"];
+  const adminOnly = ["people", "person", "units", "groups", "group", "settings", "server", "activity", "advanced", "migrate", "service-accounts", "email"];
   useEffect(() => {
     if (path === "/" || path === "") go(me.isAdmin ? "/people" : "/me");
     else if (!me.isAdmin && adminOnly.includes(sec)) go("/me");
@@ -121,6 +122,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   else if (sec === "advanced") view = <Advanced />;
   else if (sec === "migrate") view = <Migrate />;
   else if (sec === "service-accounts") view = <ServiceAccounts />;
+  else if (sec === "email") view = <Email />;
   else view = <MyAccount me={me} />;
 
   return (
@@ -134,6 +136,7 @@ function Shell({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
           {me.isAdmin && tab("/settings", "Settings", ["settings"])}
           {me.isAdmin && tab("/server", "Server", ["server"])}
           {me.isAdmin && tab("/service-accounts", "Service accounts", ["service-accounts"])}
+          {me.isAdmin && tab("/email", "Email", ["email"])}
           {me.isAdmin && tab("/activity", "Activity", ["activity"])}
           {me.isAdmin && canMigrate && tab("/migrate", "Migrate", ["migrate"])}
           {me.isAdmin && tab("/advanced", "Advanced", ["advanced"])}

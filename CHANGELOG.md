@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0 (in progress)
+
+### Email
+- **Email page:** tell Dapper which mail server to use (address, port, STARTTLS or TLS, optional sign-in, sender, and
+  Dapper's own web address for links). A test-message button tries the settings, saved or not, and explains in plain
+  words what went wrong. Email stays off until you turn it on. The saved password is never shown again. An unencrypted
+  connection is only allowed to a mail server on the same machine. See [docs/email.md](docs/email.md).
+
 ## 2.0.0
 
 Dapper can now run your directory server too. Everything from 1.0.0 still works unchanged with a server you run
