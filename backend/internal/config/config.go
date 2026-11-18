@@ -109,6 +109,8 @@ type Mail struct {
 	From       string `yaml:"from"`
 	FromName   string `yaml:"fromName"`
 	SkipVerify bool   `yaml:"skipVerify"`
+	// NoReminders turns off the emails that warn people before their password expires (on by default).
+	NoReminders bool `yaml:"noReminders"`
 	// PublicURL is the address people use to reach Dapper. Links in emails are built from it, never from the
 	// request, so a forged Host header can't point a reset link somewhere else.
 	PublicURL string `yaml:"publicURL"`

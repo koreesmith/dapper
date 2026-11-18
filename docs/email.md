@@ -58,3 +58,16 @@ address and a one-time link, valid for 7 days, where they choose their own passw
 If the message can't be sent (email is off, the person has no address, or the mail server refuses it), the account is
 still created and the page says why, so you can pass on the temporary password as before. A link that never reached the
 person is cancelled straight away.
+
+## Password expiry reminders
+
+If your directory's password rules include a maximum age (turn them on from the **Server** page), passwords expire.
+Dapper then emails people who have an address **14, 7 and 1 days before** theirs expires: one message per reminder
+point, never repeated for the same expiry, and a person first noticed with 5 days left gets one message, not three.
+Dapper checks a minute after it starts and then every six hours, and remembers what it has sent in its data volume
+(`reminders.json`), so a restart doesn't repeat anything. Changing the password starts a fresh cycle.
+
+Nothing is sent to suspended or locked people, to people without an email address, or for a password that has already
+expired (those people can use "Forgot your password?"). Turn the whole thing off with "Remind people by email before
+their password expires" on the Email page. **Check now** on that page runs a check immediately and says how many
+messages it sent, which is the easy way to test it.

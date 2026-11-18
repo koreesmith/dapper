@@ -10,7 +10,7 @@ const LABELS: Record<string, string> = {
   "password.change": "Changed their own password", "password.forgot": "Asked for a password reset link",
   "password.forgot.blocked": "Password reset requests blocked (too many)", "password.reset": "Chose a new password from an emailed link",
   "password.reset.refused": "Refused a password reset link that wasn't valid", "mail.update": "Changed email settings",
-  "mail.test": "Sent a test email", "mail.test.failed": "A test email failed", "profile.update": "Edited their own details", "photo.update": "Changed a photo",
+  "mail.test": "Sent a test email", "mail.reminders.run": "Checked for password expiry reminders", "reminder.sent": "Sent a password expiry reminder", "mail.test.failed": "A test email failed", "profile.update": "Edited their own details", "photo.update": "Changed a photo",
   "group.create": "Created a group", "group.delete": "Deleted a group", "group.member.add": "Added a group member",
   "group.member.remove": "Removed a group member", "group.gid.change": "Changed a group ID",
   "ou.create": "Created an OU", "ou.rename": "Renamed an OU", "ou.delete": "Deleted an OU", "user.move": "Moved an account",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, MailSettings } from "./api";
+import { api, MailSettings, ReminderStatus } from "./api";
 import { Notice } from "./ui";
 
 const PRESETS: Record<MailSettings["security"], { label: string; port: number; hint: string }> = {
@@ -11,13 +11,15 @@ const PRESETS: Record<MailSettings["security"], { label: string; port: number; h
 /** The outgoing mail server: what Dapper uses to send password reset links and notices. */
 export function Email() {
   const [m, setM] = useState<MailSettings | null>(null);
+  const [rem, setRem] = useState<ReminderStatus | null>(null);
+  const [remMsg, setRemMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [busy, setBusy] = useState(false);
   const [to, setTo] = useState("");
   const [testMsg, setTestMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
-  useEffect(() => { api.mail().then((r) => setM(r.mail)).catch((x) => setErr((x as Error).message)); }, []);
+  useEffect(() => { api.mail().then((r) => { setM(r.mail); setRem(r.reminders); }).catch((x) => setErr((x as Error).message)); }, []);
   if (!m) return <div className="page">{err ? <Notice kind="error">{err}</Notice> : "Loading…"}</div>;
 
   const set = (p: Partial<MailSettings>) => { setM({ ...m, ...p }); setOk(""); };
@@ -78,6 +80,7 @@ export function Email() {
           <input value={m.publicURL} onChange={(e) => set({ publicURL: e.target.value })} placeholder="https://dapper.example.org" autoCapitalize="none" spellCheck={false} />
           <span className="sub">The address people type in their browser. Links in emails are built from this, so use the real one.</span>
         </label>
+        <label className="inline"><input type="checkbox" checked={m.remindExpiry} onChange={(e) => set({ remindExpiry: e.target.checked })} /> Remind people by email before their password expires</label>
         <label className="inline"><input type="checkbox" checked={m.skipVerify} onChange={(e) => set({ skipVerify: e.target.checked })} /> Accept a mail server certificate that isn't trusted (not recommended)</label>
 
         <div className="formactions">
@@ -92,6 +95,27 @@ export function Email() {
         {testMsg && <Notice kind={testMsg.kind}>{testMsg.text}</Notice>}
         <div className="formactions">
           <button disabled={busy || !to || !m.host} onClick={test}>Send test message</button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>Password expiry reminders</h3>
+        <p className="sub">
+          {rem?.rulesOn
+            ? <>People with an email address get a message {rem.days.slice(0, -1).join(", ")} and {rem.days[rem.days.length - 1]} days before their password expires, once each. Dapper checks every few hours.</>
+            : <>Passwords only expire when your directory's password rules include a maximum age. They aren't turned on, so nobody is reminded. You can turn them on from the Server page.</>}
+        </p>
+        {rem?.lastRun && <p className="sub">Last check: {new Date(rem.lastRun).toLocaleString()}, {rem.lastSent} reminder{rem.lastSent === 1 ? "" : "s"} sent.{rem.lastError ? ` It reported: ${rem.lastError}.` : ""}</p>}
+        {remMsg && <Notice kind={remMsg.kind}>{remMsg.text}</Notice>}
+        <div className="formactions">
+          <button disabled={busy || !m.enabled || !rem?.rulesOn} onClick={async () => {
+            setRemMsg(null); setBusy(true);
+            try {
+              const r = await api.runReminders();
+              setRemMsg({ kind: "ok", text: r.sent === 0 ? "Checked. Nobody needed a reminder right now." : `Checked. ${r.sent} reminder${r.sent === 1 ? " was" : "s were"} sent.` });
+              setRem((await api.mail()).reminders);
+            } catch (x) { setRemMsg({ kind: "error", text: (x as Error).message }); } finally { setBusy(false); }
+          }}>Check now</button>
         </div>
       </div>
     </div>

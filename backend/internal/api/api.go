@@ -30,6 +30,7 @@ type Server struct {
 	sessions *session.Store
 	limit    *limiter
 	resets   *resets.Store
+	remind   reminderRun              // the expiry reminders: what the last check did
 	sender   func(mail.Message) error // tests replace the real mail sender
 
 	mig        migState // a migration into a Dapper-run server, if one is under way
@@ -49,6 +50,7 @@ func New(store *config.Store, pol *policy.Policy) *Server {
 	if !store.Configured() {
 		s.setupToken = newSetupToken()
 	}
+	go s.reminderLoop()
 	if l, err := auditrec.Open(cfg.DataDir); err != nil {
 		log.Printf("the activity record couldn't be opened (%v); actions are still written to this log", err)
 	} else {
@@ -157,6 +159,7 @@ func (s *Server) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/admin/mail", s.admin(s.mailGet))
 	mux.HandleFunc("PUT /api/admin/mail", s.admin(s.mailPut))
 	mux.HandleFunc("POST /api/admin/mail/test", s.admin(s.mailTest))
+	mux.HandleFunc("POST /api/admin/mail/reminders", s.admin(s.remindersRunNow))
 	mux.HandleFunc("POST /api/admin/settings/check", s.admin(s.checkSettings))
 	mux.HandleFunc("POST /api/admin/settings/containers", s.admin(s.createContainer))
 	mux.HandleFunc("GET /api/admin/server/config", s.admin(s.serverGet))
