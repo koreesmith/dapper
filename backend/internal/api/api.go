@@ -339,6 +339,7 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *session.Sessio
 			"suspendByMove":     s.c().Users.SuspendedBaseDN != "",
 			"passwordMinLength": s.c().Password.MinLength,
 			"unix":              s.c().Unix.Enabled,
+			"email":             s.resetEnabled(),
 			"sshKeys":           s.c().Unix.Enabled && s.c().Unix.SSHKeys,
 			"homePattern":       s.c().Unix.HomePattern,
 			"defaultShell":      s.c().Unix.DefaultShell,

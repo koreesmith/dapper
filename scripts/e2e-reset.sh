@@ -39,7 +39,7 @@ LOG=$J/mail.log; : > "$LOG"
 python3 "$J/sink.py" "$LOG" "$MAIL_PORT" & SINK=$!
 R=$RANDOM; U=rs$R; N=rn$R; P1="first-long-pass-$R"; P2="second-long-pass-$R"; P3="third-long-pass-$R"
 pdn() { echo "uid=$1,ou=people,dc=example,dc=org"; }
-cleanup() { req adm DELETE "/api/admin/user?dn=$(pdn $U)" >/dev/null; req adm DELETE "/api/admin/user?dn=$(pdn $N)" >/dev/null
+cleanup() { req adm DELETE "/api/admin/user?dn=$(pdn wl$R)" >/dev/null; req adm DELETE "/api/admin/user?dn=$(pdn wl${R}b)" >/dev/null; req adm DELETE "/api/admin/user?dn=$(pdn $U)" >/dev/null; req adm DELETE "/api/admin/user?dn=$(pdn $N)" >/dev/null
   req adm PUT /api/admin/mail '{"enabled":false,"port":587,"security":"starttls"}' >/dev/null; kill $SINK 2>/dev/null; rm -rf "$J"; }
 trap cleanup EXIT
 count() { grep -c '^=====$' "$LOG"; }
@@ -111,6 +111,24 @@ waitmail 6; expect "that sends a notice as well" "$(last | grep -c 'An administr
 req adm POST "/api/admin/user/suspend?dn=$(pdn $U)"; check "a person is suspended" 200
 req anon POST /api/password/forgot "{\"username\":\"$U\"}"; check "asking for a link for them" 200
 sleep 1.5; expect "no email is sent for a suspended account" "$(count)" 6
+
+# --- welcome email for a new person ---
+W=wl$R; P4="fourth-long-pass-$R"
+before=$(count)
+req adm POST /api/admin/users "{\"username\":\"$W\",\"attrs\":{\"givenName\":[\"Wel\"],\"sn\":[\"Come\"],\"mail\":[\"$W@example.org\"]},\"sendWelcome\":true}"; check "a person is created with a welcome message" 200
+expect "the answer says it was sent" "$(jq_ "d['welcome']['sent']")" True
+waitmail $((before+1)); expect "the welcome email arrived" "$(last | grep -c '^Subject: Welcome to Dapper')" 1
+expect "it names the username and promises a week" "$(last | grep -c "Your username is: $W")$(last | grep -c 'within the next 7 days')" 11
+expect "it greets by first name" "$(last | grep -c '^Hello Wel,')" 1
+WT=$(tokenof)
+req anon POST /api/password/reset "{\"token\":\"$WT\",\"password\":\"$P4\"}"; check "the welcome link lets them choose a password" 200
+req w POST /api/login "{\"username\":\"$W\",\"password\":\"$P4\"}"; check "and they sign in with it" 200
+req anon POST /api/password/reset "{\"token\":\"$WT\",\"password\":\"$P1-again\"}"; check "the welcome link works only once" 400
+waitmail $((before+2)); expect "choosing the password sent the 'password changed' notice" "$(last | grep -c '^Subject: Your password was changed')" 1
+before=$(count)
+req adm POST /api/admin/users "{\"username\":\"${W}b\",\"attrs\":{\"givenName\":[\"No\"],\"sn\":[\"Address\"]},\"sendWelcome\":true}"; check "a person with no email address is still created" 200
+expect "and the answer explains why nothing was sent" "$(jq_ "d['welcome']['sent']==False and 'no email address' in d['welcome']['message']")" True
+sleep 1; expect "no email went out" "$(count)" "$before"
 
 # --- activity record ---
 req adm GET "/api/admin/audit?q=$U&category=password&page=1&pageSize=50"

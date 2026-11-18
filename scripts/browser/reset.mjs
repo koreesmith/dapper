@@ -85,6 +85,36 @@ try {
   await p.goto(BASE + "/#/");
   await signIn(p, U, P2);
   ok("the person signs in with the new password", await p.getByRole("button", { name: "Sign out" }).isVisible());
+  // a welcome message from the New person page
+  await p.getByRole("button", { name: "Sign out" }).click();
+  await signIn(p, "alice", "alicepass");
+  await p.goto(BASE + "/#/people/new");
+  const WN = `wb${R}`, WP = `welcome-long-pass-${R}`;
+  await p.getByLabel("First name").fill("Wel"); await p.getByLabel("Last name").fill("Come");
+  const box = p.getByLabel(/Email them a welcome message/);
+  await box.waitFor();
+  ok("the welcome box is offered but waits for an email address", await box.isDisabled());
+  await p.getByLabel("Email", { exact: true }).fill(`${WN}@example.org`);
+  ok("it is on once there is an address", await box.isEnabled() && await box.isChecked());
+  await p.getByLabel("Username *").fill(WN);
+  const n0 = mails.length;
+  await p.getByRole("button", { name: "Create account" }).click();
+  await p.getByText(/A welcome message with a link to choose a password was sent/).waitFor();
+  ok("the page says the welcome message was sent", true);
+  ok("the welcome email arrives", await waitMail(n0 + 1));
+  const wurl = (mails.filter((m) => /Welcome to/.test(m)).at(-1)?.match(/https?:\/\/\S+#\/reset\/[A-Za-z0-9_-]+/) || [])[0];
+  ok("it holds a link", !!wurl);
+  await p.getByRole("button", { name: "Sign out" }).click();
+  await p.goto(wurl);
+  await p.getByLabel("New password").fill(WP); await p.getByLabel("Type it again").fill(WP);
+  await p.getByRole("button", { name: "Save new password" }).click();
+  await p.getByText(/Your password was changed/).waitFor();
+  await p.goto(BASE + "/#/");
+  await signIn(p, WN, WP);
+  ok("the new person signs in with the password they chose", await p.getByRole("button", { name: "Sign out" }).isVisible());
+  await p.getByRole("button", { name: "Sign out" }).click();
+  await signIn(p, "alice", "alicepass");
+  await api("DELETE", `/api/admin/user?dn=${encodeURIComponent(`uid=${WN},ou=people,dc=example,dc=org`)}`);
   const other = consoleErrors.filter((e) => !e.includes("status of 400") && !e.includes("status of 401"));
   ok("no errors in the browser console", other.length === 0, other);
 } catch (e) {

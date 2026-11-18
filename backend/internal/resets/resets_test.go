@@ -73,3 +73,18 @@ func TestOnlyTheHashIsKept(t *testing.T) {
 		t.Error("revoked links must not work")
 	}
 }
+
+func TestLongerLifetimeForWelcomeLinks(t *testing.T) {
+	s := NewStore()
+	now := time.Now()
+	s.now = func() time.Time { return now }
+	tok, _ := s.IssueFor("uid=new,dc=x", 7*24*time.Hour)
+	now = now.Add(6 * 24 * time.Hour)
+	if _, ok := s.Lookup(tok); !ok {
+		t.Error("a welcome link should still work after six days")
+	}
+	now = now.Add(2 * 24 * time.Hour)
+	if _, ok := s.Lookup(tok); ok {
+		t.Error("and not after eight")
+	}
+}

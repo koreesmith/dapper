@@ -48,3 +48,13 @@ those passwords from the People page, as before. Requests are limited per accoun
 After any password change (a reset by link, someone changing their own password, or an administrator resetting it)
 the person gets a "Your password was changed" email, so a change they didn't make is noticed. It never contains the
 password.
+
+## Welcome emails
+
+When you add a person who has an email address, the **New person** page offers "Email them a welcome message with a link
+to choose their own password" (on by default once email is set up). The message gives their username, Dapper's web
+address and a one-time link, valid for 7 days, where they choose their own password. No password is ever sent by email.
+
+If the message can't be sent (email is off, the person has no address, or the mail server refuses it), the account is
+still created and the page says why, so you can pass on the temporary password as before. A link that never reached the
+person is cancelled straight away.

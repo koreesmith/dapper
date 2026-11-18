@@ -27,7 +27,8 @@ export function NewPerson({ me }: { me: Me }) {
   const [ou, setOu] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState<{ dn: string; username: string; pw?: string } | null>(null);
+  const [welcome, setWelcome] = useState(true);
+  const [created, setCreated] = useState<{ dn: string; username: string; pw?: string; welcome?: { sent: boolean; message: string } } | null>(null);
 
   useEffect(() => { if (me.features.groups) api.assignableGroups().then(setGroups).catch(() => {}); }, [me.features.groups]);
   useEffect(() => { api.units().then((r) => setUnits(r.units)).catch(() => {}); }, []);
@@ -37,6 +38,8 @@ export function NewPerson({ me }: { me: Me }) {
   useEffect(() => {
     if (!usernameEdited) setUsername(first && last ? `${slug(first)}.${slug(last)}` : slug(first || last));
   }, [first, last, usernameEdited]);
+
+  const welcomeOn = !!me.features.email && welcome && email.trim() !== "";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +55,8 @@ export function NewPerson({ me }: { me: Me }) {
       if (me.features.sshKeys && sshKey.trim()) attrs.sshPublicKey = [sshKey.trim()];
     }
     try {
-      const r = await api.createPerson({ username, attrs, password: mode === "set" ? password : undefined, groups: chosen, ou: ou || undefined });
-      setCreated({ dn: r.dn, username: r.username, pw: r.temporaryPassword });
+      const r = await api.createPerson({ username, attrs, password: mode === "set" ? password : undefined, groups: chosen, ou: ou || undefined, sendWelcome: welcomeOn });
+      setCreated({ dn: r.dn, username: r.username, pw: r.temporaryPassword, welcome: r.welcome });
     } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
 
@@ -62,9 +65,10 @@ export function NewPerson({ me }: { me: Me }) {
       <div className="page narrow">
         <div className="panel">
           <h2>{first} {last} was added</h2>
+          {created.welcome && <Notice kind={created.welcome.sent ? "ok" : "warn"}>{created.welcome.message}</Notice>}
           {created.pw ? (
             <>
-              <p>Give them this temporary password so they can sign in as <strong>{created.username}</strong>. It won't be shown again.</p>
+              <p>{created.welcome?.sent ? "You can also give them this temporary password, in case the email doesn't reach them" : "Give them this temporary password"} so they can sign in as <strong>{created.username}</strong>. It won't be shown again.</p>
               <SecretBox value={created.pw} />
             </>
           ) : <p>They can sign in as <strong>{created.username}</strong> with the password you set.</p>}
@@ -148,6 +152,13 @@ export function NewPerson({ me }: { me: Me }) {
             </label>
           )}
         </fieldset>
+
+        {me.features.email && (
+          <label className="inline">
+            <input type="checkbox" checked={welcome} disabled={email.trim() === ""} onChange={(e) => setWelcome(e.target.checked)} /> Email them a welcome message with a link to choose their own password
+            {email.trim() === "" && <span className="sub"> (enter an email address first)</span>}
+          </label>
+        )}
 
         {err && <Notice kind="error">{err}</Notice>}
         <div className="formactions">
