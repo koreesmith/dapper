@@ -12,22 +12,23 @@ import (
 
 // mailIO is the mail settings as the browser sees them: the password is accepted but never returned.
 type mailIO struct {
-	Enabled     bool   `json:"enabled"`
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	Security    string `json:"security"`
-	Username    string `json:"username"`
-	Password    string `json:"password,omitempty"`
-	PasswordSet bool   `json:"passwordSet"`
-	From        string `json:"from"`
-	FromName    string `json:"fromName"`
-	SkipVerify  bool   `json:"skipVerify"`
-	PublicURL   string `json:"publicURL"`
+	Enabled      bool   `json:"enabled"`
+	Host         string `json:"host"`
+	Port         int    `json:"port"`
+	Security     string `json:"security"`
+	Username     string `json:"username"`
+	Password     string `json:"password,omitempty"`
+	PasswordSet  bool   `json:"passwordSet"`
+	From         string `json:"from"`
+	FromName     string `json:"fromName"`
+	SkipVerify   bool   `json:"skipVerify"`
+	PublicURL    string `json:"publicURL"`
+	RemindExpiry bool   `json:"remindExpiry"`
 }
 
 func mailToIO(m config.Mail) mailIO {
 	return mailIO{Enabled: m.Enabled, Host: m.Host, Port: m.Port, Security: m.Security, Username: m.Username, PasswordSet: m.Password != "",
-		From: m.From, FromName: m.FromName, SkipVerify: m.SkipVerify, PublicURL: m.PublicURL}
+		From: m.From, FromName: m.FromName, SkipVerify: m.SkipVerify, PublicURL: m.PublicURL, RemindExpiry: !m.NoReminders}
 }
 
 // mailFromIO builds the candidate settings. A blank password keeps the saved one only while the server, port and
@@ -36,7 +37,7 @@ func mailFromIO(cur config.Mail, o mailIO) config.Mail {
 	m := config.Mail{
 		Enabled: o.Enabled, Host: strings.TrimSpace(o.Host), Port: o.Port, Security: strings.TrimSpace(o.Security),
 		Username: strings.TrimSpace(o.Username), Password: o.Password, From: strings.TrimSpace(o.From),
-		FromName: strings.TrimSpace(o.FromName), SkipVerify: o.SkipVerify, PublicURL: strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
+		FromName: strings.TrimSpace(o.FromName), SkipVerify: o.SkipVerify, NoReminders: !o.RemindExpiry, PublicURL: strings.TrimRight(strings.TrimSpace(o.PublicURL), "/"),
 	}
 	same := strings.EqualFold(m.Host, cur.Host) && m.Port == cur.Port && m.Username == cur.Username
 	if m.Password == "" && same {
@@ -55,7 +56,7 @@ func mailSettings(m config.Mail) mail.Settings {
 }
 
 func (s *Server) mailGet(w http.ResponseWriter, _ *http.Request, _ *session.Session) {
-	writeJSON(w, map[string]any{"mail": mailToIO(s.c().Mail)})
+	writeJSON(w, map[string]any{"mail": mailToIO(s.c().Mail), "reminders": s.reminderStatus()})
 }
 
 func (s *Server) mailPut(w http.ResponseWriter, r *http.Request, sess *session.Session) {

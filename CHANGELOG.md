@@ -26,6 +26,11 @@
 - **New person:** an optional welcome message with the username and a 7-day, one-time link to choose their own
   password (no password is ever emailed). If it can't be sent, the account is still created and the page says why.
 
+### Password expiry reminders
+- When the directory's password rules include a maximum age, people with an email address are reminded 14, 7 and 1
+  days before their password expires, once each. Not sent to suspended or locked people. A switch and a "Check now"
+  button on the Email page; what was sent is remembered across restarts.
+
 ### Email that arrives
 - Every message carries a `Message-ID`, and Dapper greets the mail server with the host name from its web address
   instead of "localhost". The reset and notice emails greet the person by first name, name the account and the site, and
