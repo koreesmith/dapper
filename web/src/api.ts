@@ -10,7 +10,7 @@ export type Attrs = Record<string, string[]>;
 
 export interface Features {
   groups: boolean; suspendByMove: boolean; passwordMinLength: number;
-  unix: boolean; sshKeys: boolean; homePattern: string; defaultShell: string;
+  unix: boolean; sshKeys: boolean; homePattern: string; defaultShell: string; email?: boolean;
 }
 export interface Me { dn: string; name: string; isAdmin: boolean; features: Features }
 
@@ -218,8 +218,8 @@ export const api = {
     req<ImportResult>("/api/admin/users/import", json("POST", { csv, dryRun, groups })),
   bulkUsers: (action: string, dns: string[], group = "", confirmed = false) =>
     req<BulkResult>("/api/admin/users/bulk", json("POST", { action, dns, group, confirmed })),
-  createPerson: (b: { username: string; attrs: Attrs; password?: string; groups: string[]; ou?: string }) =>
-    req<{ dn: string; username: string; temporaryPassword?: string }>("/api/admin/users", json("POST", b)),
+  createPerson: (b: { username: string; attrs: Attrs; password?: string; groups: string[]; ou?: string; sendWelcome?: boolean }) =>
+    req<{ dn: string; username: string; temporaryPassword?: string; welcome?: { sent: boolean; message: string } }>("/api/admin/users", json("POST", b)),
   updatePerson: (dn: string, attrs: Attrs) => req<{ changed: number }>(`/api/admin/user?${q(dn)}`, json("PATCH", { attrs })),
   suspend: (dn: string) => req<{ dn: string }>(`/api/admin/user/suspend?${q(dn)}`, { method: "POST" }),
   restore: (dn: string) => req<{ dn: string }>(`/api/admin/user/restore?${q(dn)}`, { method: "POST" }),

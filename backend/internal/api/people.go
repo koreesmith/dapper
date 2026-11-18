@@ -424,6 +424,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 		Password string              `json:"password"`
 		Groups   []string            `json:"groups"`
 		OU       string              `json:"ou"`
+		Welcome  bool                `json:"sendWelcome"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		fail(w, http.StatusBadRequest, "Invalid request.")
@@ -441,6 +442,11 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, sess *sessio
 	resp := map[string]any{"dn": made.DN, "username": made.Username}
 	if made.TempPassword != "" {
 		resp["temporaryPassword"] = made.TempPassword
+	}
+	if in.Welcome {
+		sent, msg := s.sendWelcome(made.DN, made.Username, in.Attrs)
+		resp["welcome"] = map[string]any{"sent": sent, "message": msg}
+		audit(sess, "user.welcome", made.DN, "sent", map[bool]string{true: "yes", false: "no"}[sent])
 	}
 	writeJSON(w, resp)
 }

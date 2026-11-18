@@ -22,6 +22,10 @@
   or an administrator's reset. It never contains the password.
 - Requests, resets and refused links are on the Activity page.
 
+### Welcome emails
+- **New person:** an optional welcome message with the username and a 7-day, one-time link to choose their own
+  password (no password is ever emailed). If it can't be sent, the account is still created and the page says why.
+
 ### Email that arrives
 - Every message carries a `Message-ID`, and Dapper greets the mail server with the host name from its web address
   instead of "localhost". The reset and notice emails greet the person by first name, name the account and the site, and

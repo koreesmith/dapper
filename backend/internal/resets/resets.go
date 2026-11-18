@@ -53,8 +53,12 @@ func (s *Store) prune() {
 	}
 }
 
-// Issue makes a new link for the account, replacing any earlier one, and returns the token to put in the link.
-func (s *Store) Issue(dn string) (string, error) {
+// Issue makes a new link for the account, valid for TTL, replacing any earlier one, and returns the token to put in
+// the link.
+func (s *Store) Issue(dn string) (string, error) { return s.IssueFor(dn, TTL) }
+
+// IssueFor is Issue with a chosen lifetime, for the welcome link a new person gets, which has to survive a weekend.
+func (s *Store) IssueFor(dn string, ttl time.Duration) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -67,7 +71,7 @@ func (s *Store) Issue(dn string) (string, error) {
 		delete(s.byTok, old)
 	}
 	h := hash(tok)
-	s.byTok[h] = entry{dn: dn, expires: s.now().Add(TTL)}
+	s.byTok[h] = entry{dn: dn, expires: s.now().Add(ttl)}
 	s.byDN[key(dn)] = h
 	return tok, nil
 }

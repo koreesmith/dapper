@@ -4,7 +4,7 @@ import { Notice } from "./ui";
 
 const LABELS: Record<string, string> = {
   login: "Signed in", "login.failed": "Failed sign-in", "login.blocked": "Sign-in blocked (too many tries)",
-  "user.create": "Created an account", "user.update": "Edited an account", "user.suspend": "Suspended an account",
+  "user.create": "Created an account", "user.welcome": "Sent a welcome email", "user.update": "Edited an account", "user.suspend": "Suspended an account",
   "user.restore": "Restored an account", "user.delete": "Deleted an account", "user.password.reset": "Reset a password",
   "user.gid.change": "Changed a primary group", "user.import": "Imported accounts", "user.bulk": "Bulk change to accounts",
   "password.change": "Changed their own password", "password.forgot": "Asked for a password reset link",
