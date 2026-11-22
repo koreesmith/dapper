@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
+      - name: The version is in one place and the changelog matches it
+        run: ./scripts/check-version.sh
       - name: Vet
         run: cd backend && go vet ./...
       - name: Unit tests

@@ -8,8 +8,6 @@ services:
   openldap:
     build:
       context: ./openldap
-      args:
-        VERSION: ${DAPPER_VERSION:-2.1.0}
     environment:
       LDAP_HOSTNAME: ${LDAP_HOSTNAME:-localhost}   # put in the certificate so clients can verify it
       LDAP_TLS_NAMES: ${LDAP_TLS_NAMES:-}          # more names for the certificate, comma separated

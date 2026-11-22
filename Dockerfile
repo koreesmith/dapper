@@ -8,12 +8,15 @@ COPY web/ .
 RUN npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
-ARG VERSION=dev
+# The version comes from the VERSION file in the repository. A VERSION build argument overrides it, which nothing needs
+# to do any more; the release workflow checks that the tag and the file agree.
+ARG VERSION=
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
+COPY VERSION /VERSION
 COPY backend/ .
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /dapper ./cmd/dapper
+RUN V="${VERSION:-$(cat /VERSION)}" && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${V}" -o /dapper ./cmd/dapper
 
 FROM alpine:3.20
 ARG VERSION=dev

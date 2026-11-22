@@ -47,10 +47,10 @@ and the same settings.
 
 ### The footer shows the wrong version, or "Dapper dev"
 
-Building with `docker compose up -d --build` shows the release you checked out (2.0.0 for this one) by default. If you
-see "dev", the image was built some other way (a plain `docker build` without `--build-arg VERSION=…`), or from an
-older checkout whose compose file didn't set it; build again with `docker compose up -d --build`, or set
-`DAPPER_VERSION` in `.env`. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
+The footer shows the release you checked out: the version is read from the `VERSION` file in the repository when the
+image is built, so `docker compose up -d --build` is all it takes. If you see "dev", the image was built from an older
+checkout (before 2.1.0 the version came from `DAPPER_VERSION`), so update the checkout and build again. A
+`DAPPER_VERSION` line left in your `.env` from earlier versions is no longer used and can be deleted. Images pulled from `ghcr.io/koreesmith/dapper:<version>` already carry their version.
 
 ## Things to know when running it
 

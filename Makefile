@@ -1,4 +1,4 @@
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell cat VERSION)
 .PHONY: dev-ldap backend web build image test e2e
 dev-ldap: ; docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d openldap  # the demo directory only (not Dapper)
 backend:  ; cd backend && go run ./cmd/dapper
