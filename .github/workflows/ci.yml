@@ -203,6 +203,7 @@ jobs:
   # shows up before a version is tagged, not after.
   arm64-images:
     runs-on: ubuntu-latest
+    timeout-minutes: 30   # a normal build takes a few minutes; don't wait six hours if something hangs
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

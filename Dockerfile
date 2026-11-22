@@ -1,15 +1,19 @@
-FROM node:20-alpine AS web
+# The web files and the Go program are built on the machine doing the build (BUILDPLATFORM) and cross-compiled, so
+# building the arm64 image doesn't run Node or the Go compiler under emulation, which is slow and can hang.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS web
 WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.26-alpine AS backend
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
 ARG VERSION=dev
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 COPY backend/ .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /dapper ./cmd/dapper
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /dapper ./cmd/dapper
 
 FROM alpine:3.20
 ARG VERSION=dev
