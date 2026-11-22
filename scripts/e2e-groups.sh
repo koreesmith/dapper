@@ -30,8 +30,10 @@ mkperson $P1 $((7000+R%900)); G1=$((7000+R%900))
 mkperson $P2 $((8000+R%900)); G2=$((8000+R%900))
 mkpgroup $P1 $G1 ''; check "personal group for person 1" 200
 mkpgroup $P2 $G2 ''; check "personal group for person 2" 200
-mkpgroup $LG $((9000+R%900)) ",\"memberUid\":[\"$P2\"]"; check "shared Linux group with a memberUid" 200
+# the names contain R, and a search for the ID also matches names: pick an ID that is not part of R
 LGID=$((9000+R%900))
+while [[ "$R" == *"$LGID"* ]]; do LGID=$((LGID+1)); done
+mkpgroup $LG $LGID ",\"memberUid\":[\"$P2\"]"; check "shared Linux group with a memberUid" 200
 
 # --- listing ---
 req adm GET "/api/admin/groups?pageSize=500"
