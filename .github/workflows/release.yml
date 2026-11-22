@@ -32,7 +32,14 @@ jobs:
 
       - name: Work out the version
         id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          # The version lives in the VERSION file; refuse to publish if the tag says something else.
+          file=$(tr -d '[:space:]' < VERSION)
+          if [ "v$file" != "$GITHUB_REF_NAME" ]; then
+            echo "The tag is $GITHUB_REF_NAME but the VERSION file says $file. Fix the file and tag again (with a new version, never by moving a published tag)."
+            exit 1
+          fi
+          echo "version=$file" >> "$GITHUB_OUTPUT"
 
       - name: Build and publish the image
         uses: docker/build-push-action@v6

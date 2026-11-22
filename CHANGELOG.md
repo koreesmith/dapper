@@ -31,6 +31,12 @@
   days before their password expires, once each. Not sent to suspended or locked people. A switch and a "Check now"
   button on the Email page; what was sent is remembered across restarts.
 
+### One place for the version
+- The release version is the `VERSION` file in the repository. Building the image (including `docker compose up
+  --build`) reads it, so the footer always shows the release you checked out and nothing has to be set in `.env`.
+  `DAPPER_VERSION` is no longer used. CI checks the file and the changelog agree, and the release refuses to publish
+  if the tag and the file differ. See [docs/releasing.md](docs/releasing.md).
+
 ### Email that arrives
 - Every message carries a `Message-ID`, and Dapper greets the mail server with the host name from its web address
   instead of "localhost". The reset and notice emails greet the person by first name, name the account and the site, and

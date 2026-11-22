@@ -4,9 +4,7 @@
 services:
   dapper:
     build:
-      context: .
-      args:
-        VERSION: ${DAPPER_VERSION:-2.1.0}   # shown in the page footer: this release; override in .env (see .env.example)
+      context: .   # the version shown in the page footer comes from the VERSION file in this folder
     ports:
       # Set these in a .env file (see .env.example):
       #   DAPPER_PORT  the port to publish on this server (default 8080)

@@ -1,7 +1,6 @@
 {
   "name": "dapper-web",
   "private": true,
-  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
