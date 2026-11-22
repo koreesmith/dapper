@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.0 (in progress)
+## 2.1.0
 
 ### Email
 - **Email page:** tell Dapper which mail server to use (address, port, STARTTLS or TLS, optional sign-in, sender, and
